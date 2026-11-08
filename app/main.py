@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import connect_to_db, close_db_connection, get_database
 from app.security import hash_password
 from app.routes import auth, admin, groups, expenses, kitty, notifications
+from app.routes.kitty import ensure_group_contributions
 
 
 @asynccontextmanager
@@ -29,20 +30,79 @@ async def lifespan(app: FastAPI):
     await db.audit_logs.create_index([("timestamp", -1)])
     await db.notifications.create_index([("recipient_user_id", 1), ("created_at", -1)])
 
-    # Bootstrap the first administrator once. Never overwrite an existing account.
-    admin_email = settings.admin_email.lower()
-    existing_admin = await db.users.find_one({"email": admin_email})
-    if not existing_admin:
-        await db.users.insert_one({
-            "name": settings.admin_name,
-            "email": admin_email,
-            "phone": None,
-            "password_hash": hash_password(settings.admin_password),
-            "role": "admin",
+    # Bootstrap the 4 official EDITH crew members and group
+    now = datetime.now(timezone.utc)
+    crew = [
+        {"name": "Prajwal", "email": "prajwal@edith.travel", "role": "admin", "password": "Prajwal784"},
+        {"name": "Parichay", "email": "parichay@edith.travel", "role": "member", "password": "Parichay392"},
+        {"name": "Srujan", "email": "srujan@edith.travel", "role": "member", "password": "Srujan516"},
+        {"name": "Nitish", "email": "nitish@edith.travel", "role": "member", "password": "Nitish628"},
+    ]
+
+    user_map = {}
+    for member in crew:
+        user = await db.users.find_one({"email": member["email"]})
+        if not user:
+            res = await db.users.insert_one({
+                "name": member["name"],
+                "email": member["email"],
+                "phone": None,
+                "password_hash": hash_password(member["password"]),
+                "role": member["role"],
+                "is_active": True,
+                "created_at": now,
+                "must_change_password": False,
+            })
+            user = await db.users.find_one({"_id": res.inserted_id})
+        user_map[member["name"]] = user
+
+    # Ensure group EDITH-TRIP-01 exists
+    group = await db.groups.find_one({"group_code": "EDITH-TRIP-01"})
+    if not group:
+        prajwal_user = user_map.get("Prajwal")
+        prajwal_id = str(prajwal_user["_id"]) if prajwal_user else "admin"
+        res = await db.groups.insert_one({
+            "name": "EDITH Annual Trip",
+            "group_code": "EDITH-TRIP-01",
+            "monthly_contribution": 2000,
+            "duration_months": 12,
+            "start_date": now,
+            "custody_holder_name": "Prajwal",
+            "currency": "INR",
+            "created_by": prajwal_id,
+            "trip_destination": "Manali & Spiti Valley",
+            "trip_start_date": "2027-04-15",
+            "trip_end_date": "2027-04-25",
+            "planned_trip_budget": 96000,
+            "trip_notes": "Official 4-member road trip through Himachal & Ladakh.",
+            "trip_stops": [
+                {"stop_number": 1, "destination_name": "Delhi", "arrival_date": "2027-04-15", "nights": 1, "transit_mode": "flight"},
+                {"stop_number": 2, "destination_name": "Manali", "arrival_date": "2027-04-16", "nights": 3, "transit_mode": "van"},
+                {"stop_number": 3, "destination_name": "Kaza / Spiti", "arrival_date": "2027-04-19", "nights": 4, "transit_mode": "suv"},
+                {"stop_number": 4, "destination_name": "Shimla", "arrival_date": "2027-04-23", "nights": 2, "transit_mode": "suv"}
+            ],
+            "trip_title": "EDITH Northern Expedition",
             "is_active": True,
-            "created_at": datetime.now(timezone.utc),
-            "must_change_password": True,
+            "created_at": now,
         })
+        group = await db.groups.find_one({"_id": res.inserted_id})
+
+    # Link all 4 members to EDITH-TRIP-01
+    group_id_str = str(group["_id"])
+    for name, user in user_map.items():
+        uid_str = str(user["_id"])
+        membership = await db.memberships.find_one({"group_id": group_id_str, "user_id": uid_str})
+        if not membership:
+            await db.memberships.insert_one({
+                "group_id": group_id_str,
+                "user_id": uid_str,
+                "role": user.get("role", "member"),
+                "joined_at": now,
+                "is_active": True,
+            })
+
+    # Ensure 12-month savings kitty schedules exist for all 4 members
+    await ensure_group_contributions(db, group)
 
     yield
     await close_db_connection()

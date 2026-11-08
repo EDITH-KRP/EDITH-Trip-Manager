@@ -54,17 +54,18 @@ python -m http.server 5500
 
 ---
 
-## 🔑 Initial Administrator Account
+## 👥 Official Crew Member Accounts
 
-On first launch, the system automatically bootstraps the administrator account from `.env`:
+On first launch, the system automatically bootstraps the 4 crew members and links them to the group (`EDITH-TRIP-01`):
 
-| Field | Value |
-| :--- | :--- |
-| **Email** | `admin@example.com` (or value of `ADMIN_EMAIL` in `.env`) |
-| **Password** | `ChangeThis-Immediately-123!` (or value of `ADMIN_PASSWORD` in `.env`) |
-| **Role** | Administrator |
+| Name | Role | Username / Email | Password |
+| :--- | :--- | :--- | :--- |
+| **Prajwal** | **Administrator** | `Prajwal` or `prajwal@edith.travel` | `Prajwal784` |
+| **Parichay** | Group Member | `Parichay` or `parichay@edith.travel` | `Parichay392` |
+| **Srujan** | Group Member | `Srujan` or `srujan@edith.travel` | `Srujan516` |
+| **Nitish** | Group Member | `Nitish` or `nitish@edith.travel` | `Nitish628` |
 
-*Once logged in, the administrator creates the group (e.g. `EDITH-TRIP-01`) and provisions real accounts for the other 3 members.*
+*(Note: Members can log in using either their simple first name or their full email address.)*
 
 ---
 

@@ -10,12 +10,23 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest):
     db = get_database()
-    user = await db.users.find_one({"email": payload.email.lower()})
+    identifier = payload.email.strip().lower()
+
+    # Match by exact email, or auto-completed @edith.travel, or by member first name
+    user = await db.users.find_one({"email": identifier})
+    if not user and "@" not in identifier:
+        user = await db.users.find_one({"email": f"{identifier}@edith.travel"})
+        if not user:
+            all_users = await db.users.find({}).to_list()
+            for candidate in all_users:
+                if candidate.get("name", "").strip().lower() == identifier:
+                    user = candidate
+                    break
 
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect username/email or password",
         )
     if not user.get("is_active", False):
         raise HTTPException(status_code=403, detail="Account is disabled")

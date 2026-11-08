@@ -17,9 +17,9 @@ class Settings(BaseSettings):
     local_db_path: str = "data/edith.db"
 
     # Default bootstrap administrator
-    admin_name: str = "Trip Admin"
-    admin_email: str = "admin@example.com"
-    admin_password: str = "ChangeThis-Immediately-123!"
+    admin_name: str = "Prajwal"
+    admin_email: str = "prajwal@edith.travel"
+    admin_password: str = "Prajwal784"
 
     frontend_origin: str = "http://127.0.0.1:5500"
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, date, timedelta
-from typing import Optional
+from typing import Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.database import get_database, ObjectId
 from app.dependencies import get_current_user, require_admin
@@ -28,8 +28,16 @@ async def _get_member_group(db, group_code: str, user: dict):
     return group
 
 
-def calculate_due_date(start_date: datetime, month_index: int) -> datetime:
+def calculate_due_date(start_date: Any, month_index: int) -> datetime:
     """Calculate the 10th of each respective month in the savings timeline."""
+    if isinstance(start_date, str):
+        try:
+            start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+        except Exception:
+            start_date = datetime.now(timezone.utc)
+    elif not isinstance(start_date, (datetime, date)):
+        start_date = datetime.now(timezone.utc)
+
     year = start_date.year + (start_date.month - 1 + (month_index - 1)) // 12
     month = ((start_date.month - 1 + (month_index - 1)) % 12) + 1
     day = 10

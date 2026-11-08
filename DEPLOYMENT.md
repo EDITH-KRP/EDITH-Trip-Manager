@@ -145,3 +145,4 @@ Members can open the live HTTPS URL on Safari (iOS) or Chrome (Android) and tap:
 - **Android Chrome:** Three dots menu ➔ **Install App / Add to Home screen**
 
 The app behaves like a native progressive mobile app with bottom navigation, touch chips, and full-screen layout!
+
