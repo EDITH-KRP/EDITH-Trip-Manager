@@ -8,6 +8,7 @@ from app.schemas import (
     ContributionReject,
     KittyDisbursementCreate,
     KittyReconcileRequest,
+    AdminCollectPayment,
 )
 from app.services.audit import record_audit_log
 from app.services.notifications import send_notification
@@ -393,7 +394,99 @@ async def verify_contribution_payment(
             },
         )
 
-    return {"message": "Contribution verified and added to Kitty balance"}
+    return {"message": "Contribution verified and added to Fund balance"}
+
+
+@router.post("/contributions/admin-collect", status_code=200)
+async def admin_record_collection(
+    group_code: str,
+    payload: AdminCollectPayment,
+    admin=Depends(require_admin),
+):
+    """
+    Direct payment recording by administrator (Prajwal) when money is collected
+    via GPay, PhonePe, Cash, or Bank transfer.
+    """
+    db = get_database()
+    group = await _get_member_group(db, group_code, admin)
+    now = datetime.now(timezone.utc)
+    amt = payload.amount or 2000
+
+    member = await db.users.find_one({"_id": payload.user_id})
+    member_name = member.get("name", "Member") if member else "Member"
+
+    # Find existing contribution record for this month
+    c = await db.contributions.find_one({
+        "group_id": str(group["_id"]),
+        "user_id": payload.user_id,
+        "month_index": payload.month_index,
+    })
+
+    if c:
+        await db.contributions.update_one(
+            {"_id": c["_id"]},
+            {"$set": {
+                "status": "verified",
+                "amount": amt,
+                "amount_due": amt,
+                "amount_paid": amt,
+                "utr_reference": payload.payment_mode or "DIRECT",
+                "payment_date": now,
+                "verified_at": now,
+                "verified_by": str(admin["_id"]),
+                "notes": payload.notes or "Collected directly by Admin",
+            }}
+        )
+        contrib_id = str(c["_id"])
+    else:
+        res = await db.contributions.insert_one({
+            "group_id": str(group["_id"]),
+            "user_id": payload.user_id,
+            "month_index": payload.month_index,
+            "cycle_month": f"Month {payload.month_index}",
+            "due_date": now,
+            "amount": amt,
+            "amount_due": amt,
+            "amount_paid": amt,
+            "status": "verified",
+            "utr_reference": payload.payment_mode or "DIRECT",
+            "payment_date": now,
+            "verified_at": now,
+            "verified_by": str(admin["_id"]),
+            "notes": payload.notes or "Collected directly by Admin",
+            "created_at": now,
+        })
+        contrib_id = str(res.inserted_id)
+
+    # Log in fund transaction ledger
+    tx_doc = {
+        "group_id": str(group["_id"]),
+        "type": "contribution_inflow",
+        "amount": amt,
+        "description": f"Month {payload.month_index} savings received from {member_name} ({payload.payment_mode})",
+        "recipient_name": member_name,
+        "created_by": str(admin["_id"]),
+        "created_at": now,
+        "balance_after": 0,
+        "reference_id": contrib_id,
+    }
+    await db.kitty_transactions.insert_one(tx_doc)
+
+    await record_audit_log(
+        db=db,
+        actor=admin,
+        action="admin_direct_collection",
+        resource_type="contributions",
+        resource_id=contrib_id,
+        before_state={"status": c.get("status") if c else "none"},
+        after_state={"status": "verified", "amount": amt},
+        notes=f"Admin directly recorded Month {payload.month_index} collection of Rs {amt:,} from {member_name}",
+    )
+
+    return {
+        "message": f"Recorded ₹{amt:,} from {member_name} for Month {payload.month_index} successfully.",
+        "contribution_id": contrib_id,
+    }
 
 
 @router.put("/contributions/{contribution_id}/reject")

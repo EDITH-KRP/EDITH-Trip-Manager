@@ -115,6 +115,14 @@ class ContributionReject(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+class AdminCollectPayment(BaseModel):
+    user_id: str
+    month_index: int = Field(default=1, ge=1, le=36)
+    amount: int = Field(default=2000, gt=0, le=1000000)
+    payment_mode: str = Field(default="UPI", max_length=50)
+    notes: str = Field(default="Collected directly by Admin", max_length=500)
+
+
 class KittyDisbursementCreate(BaseModel):
     amount: int = Field(gt=0, le=100000000, description="Amount in INR rupees")
     category: str = Field(default="stay", max_length=50)

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#080b14">
+  <meta name="theme-color" content="#090d16">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="A private travel savings kitty, multi-destination itinerary planner, and shared expense manager for your crew.">
+  <meta name="description" content="Private travel fund, multi-stop itinerary, and shared expense splitter.">
   <title>EDITH — Trip Manager</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -14,306 +14,385 @@
   <!-- AUTHENTICATION SCREEN -->
   <div id="login-screen" class="login-wrap">
     <form id="login-form" class="login-card">
-      <div class="brand-mark">E</div>
-      <p class="eyebrow">YOUR PRIVATE TRAVEL SPACE</p>
-      <h1>EDITH<span>TRIP</span></h1>
-      <p class="muted">Sign in to your private crew travel portal.</p>
-      <label>Name or Email address
+      <div class="brand-header">
+        <div class="brand-badge">EDITH</div>
+        <span class="badge-tag">PRIVATE ACCESS</span>
+      </div>
+      <h1>Trip Manager</h1>
+      <p class="muted">Sign in with your name or email to access your trip space.</p>
+      
+      <label>Username or Email
         <input id="login-email" type="text" autocomplete="username" required placeholder="e.g. Prajwal or prajwal@edith.travel">
       </label>
+      
       <label>Password
         <input id="login-password" type="password" autocomplete="current-password" required placeholder="Your password">
       </label>
+      
       <button class="primary-btn full" type="submit">Sign in <span>→</span></button>
       <p id="login-error" class="error-text" role="alert"></p>
-      <p class="tiny muted">Invite-only access · Supabase verified · No public registration</p>
+      <div class="login-footer">
+        <span class="tiny muted">Private space for Prajwal, Parichay, Srujan & Nitish</span>
+      </div>
     </form>
   </div>
 
   <!-- APPLICATION SHELL -->
   <div id="app-shell" class="app-shell hidden">
-    <!-- SIDEBAR (Desktop) & BOTTOM NAV (Mobile) -->
+    <!-- NAVIGATION SIDEBAR (Desktop) & BOTTOM BAR (Mobile) -->
     <aside class="sidebar">
       <div class="side-brand">
-        <div class="brand-mark small">E</div>
-        <div><strong>EDITH-TRIP</strong><small>MANAGER</small></div>
+        <div class="brand-badge mini">E</div>
+        <div><strong>EDITH</strong><small>Trip Manager</small></div>
       </div>
-      <div class="group-chip"><span class="live-dot"></span><span id="group-code-label">PRIVATE GROUP</span></div>
+      
+      <div class="group-code-badge">
+        <span class="status-indicator"></span>
+        <span id="group-code-label">EDITH-TRIP-01</span>
+      </div>
+
       <nav class="nav-menu" aria-label="Main navigation">
         <button class="nav-link active" data-view="overview">
           <span class="nav-icon">◫</span>
           <span class="nav-text">Overview</span>
         </button>
-        <button class="nav-link" data-view="kitty">
-          <span class="nav-icon">◉</span>
-          <span class="nav-text">Savings kitty</span>
+        <button class="nav-link" data-view="fund">
+          <span class="nav-icon">💰</span>
+          <span class="nav-text">Trip Fund</span>
         </button>
         <button class="nav-link" data-view="expenses">
-          <span class="nav-icon">⇄</span>
-          <span class="nav-text">Kitty Split</span>
+          <span class="nav-icon">⚖️</span>
+          <span class="nav-text">Split Expenses</span>
         </button>
         <button class="nav-link" data-view="trip">
-          <span class="nav-icon">⌖</span>
-          <span class="nav-text">Trip planner</span>
+          <span class="nav-icon">📍</span>
+          <span class="nav-text">Itinerary</span>
         </button>
       </nav>
+
       <div class="sidebar-bottom">
-        <div class="profile-mini">
-          <div class="avatar" id="user-avatar">E</div>
-          <div><strong id="user-name">Member</strong><small id="user-role">Member</small></div>
+        <div class="profile-card">
+          <div class="avatar" id="user-avatar">P</div>
+          <div class="profile-info">
+            <strong id="user-name">Prajwal</strong>
+            <small id="user-role">Administrator</small>
+          </div>
         </div>
-        <button id="logout-btn" class="logout-btn">↪ Sign out</button>
+        <button id="logout-btn" class="logout-btn" title="Sign out">↪ Sign out</button>
       </div>
     </aside>
 
-    <!-- MAIN APP AREA -->
+    <!-- MAIN VIEW AREA -->
     <main class="main-area">
+      <!-- TOP NAVIGATION BAR -->
       <header class="topbar">
-        <div class="top-title-wrap">
-          <div class="mobile-brand-pill">
-            <span class="brand-mark tiny">E</span>
-            <span id="mobile-group-code" class="tiny-code">EDITH</span>
-          </div>
+        <div class="topbar-left">
+          <span class="mobile-group-pill" id="mobile-group-code">EDITH-TRIP-01</span>
           <div>
-            <p class="eyebrow" id="page-kicker">YOUR GROUP AT A GLANCE</p>
+            <p class="view-eyebrow" id="page-kicker">DASHBOARD</p>
             <h2 id="page-title">Overview</h2>
           </div>
         </div>
-        <div class="top-actions">
-          <button id="audit-btn" class="soft-btn hidden" title="View Audit Trail">📜 Audit Log</button>
-          <span class="private-pill">● PRIVATE</span>
-          <button id="refresh-btn" class="icon-btn" title="Refresh data">↻</button>
+        <div class="topbar-actions">
+          <button id="audit-btn" class="secondary-btn hidden" title="View Audit Trail">Audit Log</button>
+          <button id="refresh-btn" class="icon-btn" title="Refresh">↻</button>
           <button id="mobile-logout-btn" class="icon-btn mobile-only-btn" title="Sign out">↪</button>
         </div>
       </header>
 
-      <!-- VIEW 1: OVERVIEW -->
+      <!-- TAB 1: OVERVIEW -->
       <section id="view-overview" class="view active-view">
-        <div class="welcome-row">
+        <div class="header-card">
           <div>
-            <p class="muted">Your next adventure starts here.</p>
-            <h1>One crew. One kitty. <em>Infinite memories.</em></h1>
+            <span class="eyebrow-accent">ACTIVE TRIP</span>
+            <h1 id="overview-trip-title">Manali & Spiti Expedition</h1>
+            <p class="muted" id="overview-dates">April 15 – April 25, 2027</p>
           </div>
-          <div class="trip-countdown">
-            <small>TRIP DESTINATION</small>
-            <strong id="overview-destination">Not planned yet</strong>
-            <span id="overview-dates">Add your trip details</span>
+          <div class="header-stat">
+            <small>DESTINATION</small>
+            <strong id="overview-destination">Manali & Spiti Valley</strong>
           </div>
         </div>
-        <div class="stat-grid">
-          <article class="stat-card accent-card">
-            <div class="stat-head"><span>Group savings target</span><span class="stat-icon">₹</span></div>
-            <strong id="stat-target">₹96,000</strong>
-            <small id="stat-target-meta">4 members · 12 months · ₹2,000 each</small>
-          </article>
-          <article class="stat-card">
-            <div class="stat-head"><span>Confirmed kitty</span><span class="stat-icon">◉</span></div>
+
+        <div class="stats-row">
+          <article class="stat-card highlight">
+            <span class="stat-label">Total Fund Collected</span>
             <strong id="stat-collected">₹0</strong>
-            <small>Only approved contributions count</small>
+            <small id="stat-target-meta">Target: ₹96,000 (₹2,000/mo × 4 members)</small>
           </article>
           <article class="stat-card">
-            <div class="stat-head"><span>Trip expenses</span><span class="stat-icon">↗</span></div>
+            <span class="stat-label">Current Fund Balance</span>
+            <strong id="stat-balance">₹0</strong>
+            <small>Available in group savings</small>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Shared Trip Expenses</span>
             <strong id="stat-expenses">₹0</strong>
-            <small>Personal payments recorded for the trip</small>
+            <small>Personal spending split among crew</small>
           </article>
           <article class="stat-card">
-            <div class="stat-head"><span>Group members</span><span class="stat-icon">♧</span></div>
-            <strong id="stat-members">0 / 4</strong>
-            <small>Private invited group</small>
+            <span class="stat-label">Crew Members</span>
+            <strong id="stat-members">4 / 4</strong>
+            <small>Prajwal, Parichay, Srujan, Nitish</small>
           </article>
         </div>
-        <div class="content-grid">
-          <article class="panel progress-panel">
-            <div class="panel-heading">
-              <div><p class="eyebrow">SAVINGS PROGRESS</p><h3>Building the kitty</h3></div>
-              <span class="soft-tag">12-month plan</span>
-            </div>
-            <div class="progress-track"><div id="kitty-progress" class="progress-fill"></div></div>
-            <div class="progress-meta"><span id="kitty-progress-label">0% collected</span><span id="kitty-remaining">₹96,000 remaining</span></div>
-            <div class="panel-note">Individual contribution history stays private. The group sees only the shared verified kitty total.</div>
-          </article>
+
+        <div class="layout-grid">
+          <!-- Fund Progress Card -->
           <article class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">QUICK ACTIONS</p><h3>Make a move</h3></div></div>
-            <button class="action-row" data-go="kitty">
-              <span class="action-icon">＋</span>
-              <span><b>Record a kitty contribution</b><small>Submit UTR payment reference for verification</small></span>
-              <span class="action-arrow">→</span>
-            </button>
-            <button class="action-row" data-go="expenses">
-              <span class="action-icon">↔</span>
-              <span><b>Add a trip expense</b><small>Split fairly across participants</small></span>
-              <span class="action-arrow">→</span>
-            </button>
-            <button class="action-row" data-go="trip">
-              <span class="action-icon">⌖</span>
-              <span><b>Plan your route</b><small>Add destinations and transit details</small></span>
-              <span class="action-arrow">→</span>
-            </button>
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow-accent">SAVINGS PROGRESS</span>
+                <h3>Trip Fund Pool</h3>
+              </div>
+              <button class="secondary-btn btn-sm" data-go="fund">View Fund →</button>
+            </div>
+            <div class="progress-bar-container">
+              <div id="fund-progress" class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-stats">
+              <span id="fund-progress-label">0% Collected</span>
+              <span id="fund-remaining">₹96,000 Remaining</span>
+            </div>
+          </article>
+
+          <!-- Quick Actions -->
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow-accent">QUICK ACTIONS</span>
+                <h3>Manage Trip</h3>
+              </div>
+            </div>
+            <div class="quick-action-list">
+              <button class="action-item" data-go="expenses">
+                <span class="action-item-icon">⚖️</span>
+                <span class="action-item-text">
+                  <b>Add Shared Expense</b>
+                  <small>Record dinner, fuel, stays & split with crew</small>
+                </span>
+                <span class="action-item-arrow">→</span>
+              </button>
+              <button class="action-item" data-go="fund">
+                <span class="action-item-icon">💰</span>
+                <span class="action-item-text">
+                  <b>View Monthly Savings</b>
+                  <small>Check monthly contribution status or record payments</small>
+                </span>
+                <span class="action-item-arrow">→</span>
+              </button>
+              <button class="action-item" data-go="trip">
+                <span class="action-item-icon">📍</span>
+                <span class="action-item-text">
+                  <b>Trip Route & Dates</b>
+                  <small>View and update destinations and itinerary</small>
+                </span>
+                <span class="action-item-arrow">→</span>
+              </button>
+            </div>
           </article>
         </div>
+
+        <!-- Balances Snapshot -->
         <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">KITTY SPLIT SNAPSHOT</p><h3>Who owes whom?</h3></div>
-            <button class="text-btn" data-go="expenses">Open Kitty Split →</button>
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-accent">EXPENSE BALANCES</span>
+              <h3>Who Owes Whom</h3>
+            </div>
+            <button class="secondary-btn btn-sm" data-go="expenses">Open Split View →</button>
           </div>
-          <div id="overview-balances" class="balance-strip"><p class="muted">Add expenses to see group balances.</p></div>
+          <div id="overview-balances" class="balance-grid">
+            <p class="muted">Add expenses to see who owes whom.</p>
+          </div>
         </article>
       </section>
 
-      <!-- VIEW 2: SAVINGS KITTY -->
-      <section id="view-kitty" class="view">
-        <div class="section-intro">
+      <!-- TAB 2: TRIP FUND (MONTHLY SAVINGS & ADVANCES) -->
+      <section id="view-fund" class="view">
+        <div class="section-header">
           <div>
-            <p class="eyebrow">SAVINGS LEDGER & RECONCILIATION</p>
-            <h1>The shared kitty</h1>
-            <p class="muted">Track monthly contributions, verify payment references, and record kitty disbursements.</p>
+            <span class="eyebrow-accent">SAVINGS LEDGER</span>
+            <h1>Trip Fund</h1>
+            <p class="muted">Monthly savings contributions from all 4 members (₹2,000/month each).</p>
           </div>
-          <div class="big-total">
-            <small>AVAILABLE KITTY BALANCE</small>
-            <strong id="kitty-balance-large">₹0</strong>
+          <div class="section-actions">
+            <button id="admin-collect-btn" class="primary-btn hidden">＋ Record Member Payment</button>
+            <button id="open-disbursement-modal" class="secondary-btn hidden">－ Record Fund Spending</button>
           </div>
         </div>
 
-        <div class="notice-box">
-          <b>Privacy by design</b>
-          <span>Group members see the shared verified kitty total and target. Your personal contribution history is private between you and the administrator.</span>
+        <div class="stats-row three">
+          <article class="stat-card">
+            <span class="stat-label">Available Balance</span>
+            <strong id="fund-balance-large">₹0</strong>
+            <small>Current cash/bank balance</small>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Total Collected</span>
+            <strong id="fund-total-large">₹0</strong>
+            <small>Target: ₹96,000 (12-month cycle)</small>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Spent from Fund</span>
+            <strong id="fund-disbursed-large">₹0</strong>
+            <small>Hotel advances & group bookings</small>
+          </article>
         </div>
 
-        <div class="stat-grid three">
-          <article class="stat-card"><span class="muted">Target Collection</span><strong id="kitty-target-large">₹96,000</strong><small>Target pool</small></article>
-          <article class="stat-card"><span class="muted">Total Verified</span><strong id="kitty-total-large">₹0</strong><small>From verified contributions</small></article>
-          <article class="stat-card"><span class="muted">Disbursed (Common)</span><strong id="kitty-disbursed-large">₹0</strong><small>Hotel & transit advances</small></article>
-        </div>
-
-        <!-- MY CONTRIBUTIONS (MEMBER TIMELINE) -->
+        <!-- MEMBER SAVINGS SCHEDULE -->
         <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">PERSONAL SAVINGS SCHEDULE</p><h3>My monthly contributions</h3></div>
-            <span class="soft-tag" id="my-verified-badge">0 / 12 Verified</span>
-          </div>
-          <div id="my-contributions-list" class="contribution-schedule">
-            <p class="muted">Loading contribution records...</p>
-          </div>
-        </article>
-
-        <!-- ADMIN ONLY: VERIFICATION QUEUE -->
-        <article id="admin-verification-panel" class="panel hidden">
-          <div class="panel-heading">
-            <div><p class="eyebrow">ADMIN OVERSIGHT</p><h3>Pending verification queue</h3></div>
-            <button id="send-reminders-btn" class="soft-btn">📩 Send SMS Reminders</button>
-          </div>
-          <div id="admin-verification-list" class="verification-list">
-            <p class="muted">No pending contributions awaiting verification.</p>
-          </div>
-        </article>
-
-        <!-- KITTY DISBURSEMENTS (COMMON FUND EXPENSES) -->
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">COMMON KITTY DISBURSEMENTS</p><h3>Group expenses paid from kitty</h3></div>
-            <div class="panel-actions">
-              <button id="open-reconcile-modal" class="soft-btn hidden">⚖ Bank Audit</button>
-              <button id="open-disbursement-modal" class="primary-btn hidden">＋ Log Kitty Disbursement</button>
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-accent">SCHEDULE</span>
+              <h3 id="schedule-section-title">My Monthly Contributions</h3>
+            </div>
+            <div class="panel-controls">
+              <span class="status-pill" id="my-verified-badge">0 / 12 Paid</span>
+              <button id="toggle-all-contributions-btn" class="secondary-btn btn-sm hidden">Show All 4 Members</button>
             </div>
           </div>
-          <div id="kitty-transactions-list" class="disbursement-list">
-            <p class="muted">No kitty disbursements recorded yet.</p>
+          <div id="my-contributions-list" class="contribution-cards-grid">
+            <p class="muted">Loading contributions...</p>
+          </div>
+        </article>
+
+        <!-- FUND SPENDING / DISBURSEMENTS LIST -->
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-accent">FUND TRANSACTIONS</span>
+              <h3>Payments Made from the Fund</h3>
+            </div>
+          </div>
+          <div id="fund-transactions-list" class="disbursement-list">
+            <p class="muted">No payments made from the fund yet.</p>
           </div>
         </article>
       </section>
 
-      <!-- VIEW 3: KITTY SPLIT -->
+      <!-- TAB 3: SPLIT EXPENSES (SEPARATE DEDICATED MODULE) -->
       <section id="view-expenses" class="view">
-        <div class="section-intro">
+        <div class="section-header">
           <div>
-            <p class="eyebrow">TRIP EXPENSES · SPLITWISE-STYLE</p>
-            <h1>Kitty Split</h1>
-            <p class="muted">Record personal out-of-pocket payments, split shared costs and settle up fairly.</p>
+            <span class="eyebrow-accent">EXPENSE SPLITTER</span>
+            <h1>Split Expenses</h1>
+            <p class="muted">Log personal out-of-pocket expenses and settle up with your crew.</p>
           </div>
-          <button id="open-expense-modal" class="primary-btn">＋ Add expense</button>
+          <button id="open-expense-modal" class="primary-btn">＋ Add Expense</button>
         </div>
-        <div class="stat-grid three">
-          <article class="stat-card"><span class="muted">Total trip expenses</span><strong id="expense-total">₹0</strong></article>
-          <article class="stat-card"><span class="muted">You are owed</span><strong id="you-are-owed">₹0</strong></article>
-          <article class="stat-card"><span class="muted">You owe</span><strong id="you-owe">₹0</strong></article>
-        </div>
-        <div class="content-grid expenses-grid">
-          <article class="panel">
-            <div class="panel-heading">
-              <div><p class="eyebrow">GROUP LEDGER</p><h3>Recent expenses</h3></div>
-              <span class="soft-tag">Visible to all members</span>
-            </div>
-            <div id="expense-list" class="expense-list"><p class="muted">No trip expenses recorded yet.</p></div>
+
+        <div class="stats-row three">
+          <article class="stat-card">
+            <span class="stat-label">Total Shared Spending</span>
+            <strong id="expense-total">₹0</strong>
           </article>
-          <article class="panel">
-            <div class="panel-heading">
-              <div><p class="eyebrow">SETTLEMENT ANALYSIS</p><h3>Balances</h3></div>
-              <span class="soft-tag">Live calculation</span>
-            </div>
-            <div id="balance-list" class="balance-list"><p class="muted">Balances appear after expenses are added.</p></div>
-            <div class="settlement-box">
-              <b>Suggested settlements (Min Cash Flow)</b>
-              <div id="settlement-list"><p class="muted">No settlements to suggest.</p></div>
-            </div>
+          <article class="stat-card">
+            <span class="stat-label">You Are Owed</span>
+            <strong id="you-are-owed" class="positive-text">₹0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">You Owe</span>
+            <strong id="you-owe" class="negative-text">₹0</strong>
           </article>
         </div>
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">HOW THE MATH WORKS</p><h3>Separate kitty from personal spend</h3></div>
-          </div>
-          <div class="rule-grid">
-            <div><b>Paid personally</b><p class="muted">Included in Kitty Split and allocated to selected participants.</p></div>
-            <div><b>Paid from common kitty</b><p class="muted">Recorded against the savings kitty, not treated as a personal advance.</p></div>
-            <div><b>Two-phase settlement</b><p class="muted">Debtor proposes payment; recipient confirms before balance clears.</p></div>
-          </div>
-        </article>
+
+        <div class="split-two-col">
+          <!-- Left: Expenses Log -->
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow-accent">LEDGER</span>
+                <h3>All Shared Expenses</h3>
+              </div>
+            </div>
+            <div id="expense-list" class="expense-items-list">
+              <p class="muted">No expenses recorded yet. Tap "+ Add Expense" to log your first shared cost.</p>
+            </div>
+          </article>
+
+          <!-- Right: Balances & Settle Up -->
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow-accent">NET BALANCES</span>
+                <h3>Member Balances</h3>
+              </div>
+            </div>
+            <div id="balance-list" class="balances-vertical-list">
+              <p class="muted">Balances will calculate once expenses are added.</p>
+            </div>
+
+            <div class="settlement-container">
+              <h4>Suggested Debt Payments</h4>
+              <div id="settlement-list">
+                <p class="muted">All settled up. No pending balances.</p>
+              </div>
+            </div>
+          </article>
+        </div>
       </section>
 
-      <!-- VIEW 4: TRIP PLANNER -->
+      <!-- TAB 4: ITINERARY PLANNER -->
       <section id="view-trip" class="view">
-        <div class="section-intro">
+        <div class="section-header">
           <div>
-            <p class="eyebrow">MULTI-STOP ITINERARY</p>
-            <h1>Trip planner</h1>
-            <p class="muted">Build an overland route with up to 20 destinations, dates and stays.</p>
+            <span class="eyebrow-accent">TRAVEL PLAN</span>
+            <h1>Trip Itinerary</h1>
+            <p class="muted">Multi-stop route, destinations, travel dates, and stays.</p>
           </div>
-          <button id="edit-trip-btn" class="primary-btn">Edit trip plan</button>
+          <button id="edit-trip-btn" class="primary-btn">Edit Route</button>
         </div>
-        <article class="panel trip-overview">
-          <div>
-            <p class="eyebrow">YOUR ADVENTURE</p>
-            <h2 id="trip-title-display">Trip details coming soon</h2>
-            <p class="muted" id="trip-dates-display">Set your travel dates</p>
-          </div>
-          <div class="trip-budget">
-            <small>PLANNED BUDGET</small>
-            <strong id="trip-budget-display">₹0</strong>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-accent">ROUTE OVERVIEW</span>
+              <h2 id="trip-title-display">Trip details</h2>
+              <p class="muted" id="trip-dates-display">Travel dates</p>
+            </div>
+            <div class="header-stat">
+              <small>PLANNED BUDGET</small>
+              <strong id="trip-budget-display">₹96,000</strong>
+            </div>
           </div>
         </article>
-        <div id="trip-stops" class="stops-list">
-          <div class="empty-state">No destinations added yet. Add your first stop to start planning.</div>
+
+        <div id="trip-stops" class="stops-timeline">
+          <div class="empty-state">No destinations added yet.</div>
         </div>
+
         <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">TRIP NOTES</p><h3>Things to remember</h3></div></div>
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow-accent">NOTES</span>
+              <h3>Trip Notes & Packing</h3>
+            </div>
+          </div>
           <p id="trip-notes-display" class="muted">No notes added.</p>
         </article>
       </section>
     </main>
   </div>
 
-  <!-- MODALS -->
+  <!-- MODALS / DRAWERS -->
 
-  <!-- Add Expense Modal (Optimized with Touch Chips) -->
+  <!-- Add Expense Modal -->
   <dialog id="expense-dialog" class="modal">
     <div class="modal-drag-handle"></div>
     <form id="expense-form" class="modal-card">
       <div class="modal-head">
-        <div><p class="eyebrow">NEW SHARED EXPENSE</p><h2>Add expense</h2></div>
-        <button type="button" class="close-btn" data-close="expense-dialog" aria-label="Close dialog">×</button>
+        <div>
+          <span class="eyebrow-accent">NEW EXPENSE</span>
+          <h2>Add Shared Expense</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="expense-dialog" aria-label="Close">×</button>
       </div>
-      <label>Expense title
-        <input id="expense-title" required maxlength="120" placeholder="Hotel, fuel, dinner...">
+
+      <label>Expense Title
+        <input id="expense-title" required maxlength="120" placeholder="e.g. Dinner, Fuel, Hotel Stay">
       </label>
+
       <div class="form-row">
         <label>Amount (₹)
           <input id="expense-amount" type="number" min="1" step="1" inputmode="numeric" required placeholder="0">
@@ -322,27 +401,30 @@
           <input id="expense-date" type="date" required>
         </label>
       </div>
-      <label>Category
-        <select id="expense-category">
-          <option>Accommodation</option>
-          <option>Food</option>
-          <option>Transport</option>
-          <option>Fuel</option>
-          <option>Activities</option>
-          <option>Shopping</option>
-          <option>Other</option>
-        </select>
-      </label>
-      <label>Paid by
-        <select id="expense-payer" required></select>
-      </label>
-      
-      <!-- Touch-Friendly Participant Chips -->
+
+      <div class="form-row">
+        <label>Category
+          <select id="expense-category">
+            <option>Food & Dining</option>
+            <option>Accommodation</option>
+            <option>Fuel</option>
+            <option>Transport / Cab</option>
+            <option>Activities</option>
+            <option>Shopping</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>Paid by
+          <select id="expense-payer" required></select>
+        </label>
+      </div>
+
+      <!-- Touch Participant Chips -->
       <div class="chips-field-wrapper">
         <div class="participant-chips-toolbar">
           <span class="label-text">Split with</span>
           <div class="chip-shortcuts">
-            <button type="button" id="select-all-participants" class="chip-shortcut-btn">All</button>
+            <button type="button" id="select-all-participants" class="chip-shortcut-btn">Select All</button>
             <button type="button" id="clear-participants" class="chip-shortcut-btn">Clear</button>
           </div>
         </div>
@@ -350,97 +432,133 @@
         <select id="expense-participants" multiple class="hidden" required></select>
       </div>
 
-      <label>Split method
+      <label>Split Method
         <select id="split-type">
           <option value="equal">Equally</option>
-          <option value="custom">Custom amounts</option>
+          <option value="custom">Custom Amounts</option>
           <option value="percentage">Percentages</option>
         </select>
       </label>
       <div id="custom-splits" class="split-editor hidden"></div>
-      <label>Notes
-        <textarea id="expense-notes" rows="2" placeholder="Optional details"></textarea>
+
+      <label>Notes (Optional)
+        <textarea id="expense-notes" rows="2" placeholder="Optional details..."></textarea>
       </label>
+
       <p id="expense-form-error" class="error-text"></p>
-      <button class="primary-btn full" type="submit">Save expense</button>
+      <button class="primary-btn full" type="submit">Save Expense</button>
     </form>
   </dialog>
 
-  <!-- Edit Trip Modal -->
-  <dialog id="trip-dialog" class="modal">
+  <!-- Admin Record Monthly Payment Modal -->
+  <dialog id="admin-collect-dialog" class="modal">
     <div class="modal-drag-handle"></div>
-    <form id="trip-form" class="modal-card wide-modal">
+    <form id="admin-collect-form" class="modal-card">
       <div class="modal-head">
-        <div><p class="eyebrow">YOUR ROUTE</p><h2>Edit trip plan</h2></div>
-        <button type="button" class="close-btn" data-close="trip-dialog" aria-label="Close dialog">×</button>
+        <div>
+          <span class="eyebrow-accent">ADMIN ACTION</span>
+          <h2>Record Member Payment</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="admin-collect-dialog" aria-label="Close">×</button>
       </div>
-      <label>Trip title
-        <input id="trip-title-input" required maxlength="120" placeholder="The annual getaway">
+
+      <p class="muted">Record a monthly savings payment received via GPay, PhonePe, Cash or Bank.</p>
+
+      <label>Select Member
+        <select id="collect-user-id" required>
+          <option value="">Choose member...</option>
+        </select>
       </label>
+
       <div class="form-row">
-        <label>Start date<input id="trip-start" type="date"></label>
-        <label>End date<input id="trip-end" type="date"></label>
+        <label>Savings Month
+          <select id="collect-month-index" required>
+            <option value="1">Month 1 (Nov 2026)</option>
+            <option value="2">Month 2 (Dec 2026)</option>
+            <option value="3">Month 3 (Jan 2027)</option>
+            <option value="4">Month 4 (Feb 2027)</option>
+            <option value="5">Month 5 (Mar 2027)</option>
+            <option value="6">Month 6 (Apr 2027)</option>
+            <option value="7">Month 7 (May 2027)</option>
+            <option value="8">Month 8 (Jun 2027)</option>
+            <option value="9">Month 9 (Jul 2027)</option>
+            <option value="10">Month 10 (Aug 2027)</option>
+            <option value="11">Month 11 (Sep 2027)</option>
+            <option value="12">Month 12 (Oct 2027)</option>
+          </select>
+        </label>
+        <label>Amount (₹)
+          <input id="collect-amount" type="number" min="1" step="1" inputmode="numeric" value="2000" required>
+        </label>
       </div>
-      <label>Planned budget (₹)
-        <input id="trip-budget-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
-      </label>
-      <div class="panel-heading">
-        <h3>Destinations and stops</h3>
-        <button id="add-stop-btn" type="button" class="text-btn">＋ Add stop</button>
+
+      <div class="form-row">
+        <label>Payment Mode
+          <select id="collect-mode">
+            <option value="Google Pay">Google Pay</option>
+            <option value="PhonePe / Paytm">PhonePe / Paytm</option>
+            <option value="Bank Transfer">Bank Transfer (IMPS/NEFT)</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI">Other UPI</option>
+          </select>
+        </label>
+        <label>Reference / Note
+          <input id="collect-notes" placeholder="e.g. Received on GPay">
+        </label>
       </div>
-      <div id="stop-editor" class="stop-editor"></div>
-      <label>Trip notes
-        <textarea id="trip-notes-input" rows="3"></textarea>
-      </label>
-      <p id="trip-form-error" class="error-text"></p>
-      <button class="primary-btn full" type="submit">Save trip plan</button>
+
+      <p id="admin-collect-error" class="error-text"></p>
+      <button class="primary-btn full" type="submit">Confirm Payment</button>
     </form>
   </dialog>
 
-  <!-- Submit Contribution UTR Modal -->
-  <dialog id="kitty-submit-dialog" class="modal">
+  <!-- Submit Payment Reference Modal (Members) -->
+  <dialog id="fund-submit-dialog" class="modal">
     <div class="modal-drag-handle"></div>
-    <form id="kitty-submit-form" class="modal-card">
+    <form id="fund-submit-form" class="modal-card">
       <div class="modal-head">
-        <div><p class="eyebrow">SAVINGS KITTY</p><h2>Submit payment reference</h2></div>
-        <button type="button" class="close-btn" data-close="kitty-submit-dialog" aria-label="Close dialog">×</button>
+        <div>
+          <span class="eyebrow-accent">MEMBER SUBMISSION</span>
+          <h2>Submit Payment Reference</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="fund-submit-dialog" aria-label="Close">×</button>
       </div>
       <input type="hidden" id="submit-contrib-id">
-      <p class="muted" id="submit-contrib-desc">Submit your 12-digit UTR bank reference.</p>
-      <label>Bank/UPI Transaction Reference (UTR)
-        <input id="submit-utr" required minlength="6" maxlength="24" inputmode="numeric" placeholder="e.g. 432109876543">
+      <p class="muted" id="submit-contrib-desc">Submit your payment reference for verification.</p>
+      <label>Transaction Reference / UTR
+        <input id="submit-utr" required minlength="4" maxlength="32" placeholder="e.g. 432109876543">
       </label>
       <label>Payment Date
         <input id="submit-date" type="date" required>
       </label>
-      <label>Optional Proof URL / Receipt Link
-        <input id="submit-proof-url" type="url" placeholder="https://drive.google.com/...">
+      <label>Note (Optional)
+        <textarea id="submit-notes" rows="2" placeholder="e.g. Paid via GPay"></textarea>
       </label>
-      <label>Notes
-        <textarea id="submit-notes" rows="2" placeholder="Optional notes for custodian"></textarea>
-      </label>
-      <p id="kitty-submit-error" class="error-text"></p>
-      <button class="primary-btn full" type="submit">Submit for verification</button>
+      <p id="fund-submit-error" class="error-text"></p>
+      <button class="primary-btn full" type="submit">Submit Reference</button>
     </form>
   </dialog>
 
-  <!-- Kitty Disbursement Modal (Admin) -->
-  <dialog id="kitty-disbursement-dialog" class="modal">
+  <!-- Record Fund Spending Modal (Admin) -->
+  <dialog id="fund-disbursement-dialog" class="modal">
     <div class="modal-drag-handle"></div>
-    <form id="kitty-disbursement-form" class="modal-card">
+    <form id="fund-disbursement-form" class="modal-card">
       <div class="modal-head">
-        <div><p class="eyebrow">COMMON EXPENSE</p><h2>Record Kitty disbursement</h2></div>
-        <button type="button" class="close-btn" data-close="kitty-disbursement-dialog" aria-label="Close dialog">×</button>
+        <div>
+          <span class="eyebrow-accent">FUND SPENDING</span>
+          <h2>Record Payment from Fund</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="fund-disbursement-dialog" aria-label="Close">×</button>
       </div>
-      <label>Disbursement Amount (₹)
+      <label>Amount Paid (₹)
         <input id="disb-amount" type="number" min="1" step="1" inputmode="numeric" required placeholder="0">
       </label>
       <div class="form-row">
         <label>Category
           <select id="disb-category">
             <option value="stay">Hotel / Stay Advance</option>
-            <option value="transport">Flight / Train / Van Booking</option>
-            <option value="activity">Group Activity Deposit</option>
+            <option value="transport">Flight / Train / Vehicle Booking</option>
+            <option value="activity">Activities / Permits</option>
             <option value="equipment">Rental Equipment</option>
             <option value="other">Other Common Expense</option>
           </select>
@@ -450,51 +568,26 @@
         </label>
       </div>
       <label>Paid to / Vendor Name
-        <input id="disb-recipient" required maxlength="120" placeholder="e.g. Cedar Heights Cottage">
+        <input id="disb-recipient" required maxlength="120" placeholder="e.g. Cedar Valley Resort">
       </label>
-      <label>Description / Purpose
-        <input id="disb-desc" required maxlength="200" placeholder="e.g. 2 Deluxe Cottages 50% advance">
+      <label>Purpose / Description
+        <input id="disb-desc" required maxlength="200" placeholder="e.g. 2 Deluxe Rooms 50% advance">
       </label>
-      <p id="kitty-disb-error" class="error-text"></p>
-      <button class="primary-btn full" type="submit">Confirm disbursement</button>
+      <p id="fund-disb-error" class="error-text"></p>
+      <button class="primary-btn full" type="submit">Confirm Payment</button>
     </form>
   </dialog>
 
-  <!-- Bank Reconciliation Modal (Admin / Custodian) -->
-  <dialog id="kitty-reconcile-dialog" class="modal">
-    <div class="modal-drag-handle"></div>
-    <form id="kitty-reconcile-form" class="modal-card">
-      <div class="modal-head">
-        <div><p class="eyebrow">PHYSICAL AUDIT</p><h2>Bank reconciliation</h2></div>
-        <button type="button" class="close-btn" data-close="kitty-reconcile-dialog" aria-label="Close dialog">×</button>
-      </div>
-      <p class="muted">Compare confirmed physical bank/cash balance with recorded system balance.</p>
-      <div class="stat-card" style="margin-bottom:12px;">
-        <span class="muted">Current System Recorded Balance</span>
-        <strong id="reconcile-system-bal">₹0</strong>
-      </div>
-      <label>Actual Bank / Cash Balance (₹)
-        <input id="reconcile-actual-bal" type="number" min="0" step="1" inputmode="numeric" required placeholder="0">
-      </label>
-      <label>Audit Notes
-        <textarea id="reconcile-notes" rows="2" placeholder="e.g. Audited against HDFC statement dated 10-Jan"></textarea>
-      </label>
-      <label class="checkbox-label">
-        <input id="reconcile-apply-adjust" type="checkbox" style="width:auto;">
-        <span>Auto-apply compensating adjustment if variance exists</span>
-      </label>
-      <p id="reconcile-error" class="error-text"></p>
-      <button class="primary-btn full" type="submit">Save reconciliation audit</button>
-    </form>
-  </dialog>
-
-  <!-- Settlement Payment Modal -->
+  <!-- Settle Debt Modal -->
   <dialog id="settle-dialog" class="modal">
     <div class="modal-drag-handle"></div>
     <form id="settle-form" class="modal-card">
       <div class="modal-head">
-        <div><p class="eyebrow">SETTLE DEBT</p><h2>Record settlement payment</h2></div>
-        <button type="button" class="close-btn" data-close="settle-dialog" aria-label="Close dialog">×</button>
+        <div>
+          <span class="eyebrow-accent">SETTLEMENT</span>
+          <h2>Record Payment</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="settle-dialog" aria-label="Close">×</button>
       </div>
       <input type="hidden" id="settle-from-id">
       <input type="hidden" id="settle-to-id">
@@ -502,14 +595,48 @@
       <label>Amount (₹)
         <input id="settle-amount" type="number" min="1" step="1" inputmode="numeric" required placeholder="0">
       </label>
-      <label>Payment Date
+      <label>Date
         <input id="settle-date" type="date" required>
       </label>
-      <label>Payment Note / UTR
-        <input id="settle-note" placeholder="e.g. Paid via Google Pay">
+      <label>Payment Note / Reference
+        <input id="settle-note" placeholder="e.g. Google Pay">
       </label>
       <p id="settle-error" class="error-text"></p>
-      <button class="primary-btn full" type="submit">Submit settlement</button>
+      <button class="primary-btn full" type="submit">Submit Settlement</button>
+    </form>
+  </dialog>
+
+  <!-- Edit Trip Modal -->
+  <dialog id="trip-dialog" class="modal">
+    <div class="modal-drag-handle"></div>
+    <form id="trip-form" class="modal-card wide-modal">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow-accent">ITINERARY</span>
+          <h2>Edit Trip Details</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="trip-dialog" aria-label="Close">×</button>
+      </div>
+      <label>Trip Title
+        <input id="trip-title-input" required maxlength="120" placeholder="e.g. Manali & Spiti Valley Expedition">
+      </label>
+      <div class="form-row">
+        <label>Start Date<input id="trip-start" type="date"></label>
+        <label>End Date<input id="trip-end" type="date"></label>
+      </div>
+      <label>Planned Trip Budget (₹)
+        <input id="trip-budget-input" type="number" min="0" step="1" inputmode="numeric" placeholder="96000">
+      </label>
+      <div class="panel-header">
+        <h3>Destinations and Stops</h3>
+        <button id="add-stop-btn" type="button" class="secondary-btn btn-sm">＋ Add Stop</button>
+      </div>
+      <div id="stop-editor" class="stop-editor"></div>
+      <label>Trip Notes
+        <textarea id="trip-notes-input" rows="3"></textarea>
+      </label>
+      <p id="trip-form-error" class="error-text"></p>
+      <button class="primary-btn full" type="submit">Save Trip Plan</button>
     </form>
   </dialog>
 
@@ -518,8 +645,11 @@
     <div class="modal-drag-handle"></div>
     <div class="modal-card wide-modal">
       <div class="modal-head">
-        <div><p class="eyebrow">IMMUTABLE LEDGER</p><h2>System audit trail</h2></div>
-        <button type="button" class="close-btn" data-close="audit-dialog" aria-label="Close dialog">×</button>
+        <div>
+          <span class="eyebrow-accent">AUDIT</span>
+          <h2>Activity Log</h2>
+        </div>
+        <button type="button" class="close-btn" data-close="audit-dialog" aria-label="Close">×</button>
       </div>
       <div id="audit-log-stream" class="audit-stream">
         <p class="muted">Loading audit entries...</p>

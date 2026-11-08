@@ -1,4 +1,5 @@
 const API = (window.EDITH_API_BASE || (window.location.port === "5500" ? "http://127.0.0.1:8000/api/v1" : "/api/v1")).replace(/\/$/, "");
+
 const state = {
   token: null,
   user: null,
@@ -7,10 +8,11 @@ const state = {
   members: [],
   expenses: [],
   balances: null,
-  kittySummary: null,
+  fundSummary: null,
   myContributions: [],
   allContributions: [],
-  kittyTransactions: [],
+  fundTransactions: [],
+  showAllMembersSchedule: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -53,17 +55,28 @@ function showView(name) {
   document.querySelectorAll(".view").forEach(x => x.classList.remove("active-view"));
   $(`view-${name}`).classList.add("active-view");
   document.querySelectorAll(".nav-link").forEach(x => x.classList.toggle("active", x.dataset.view === name));
+  
   const titles = {
-    overview: ["YOUR GROUP AT A GLANCE", "Overview"],
-    kitty: ["SAVINGS LEDGER & RECONCILIATION", "Savings kitty"],
-    expenses: ["TRIP EXPENSES · SPLITWISE-STYLE", "Kitty Split"],
-    trip: ["MULTI-STOP ITINERARY", "Trip planner"],
+    overview: ["DASHBOARD", "Overview"],
+    fund: ["SAVINGS LEDGER", "Trip Fund"],
+    expenses: ["EXPENSE SPLITTER", "Split Expenses"],
+    trip: ["TRAVEL PLAN", "Trip Itinerary"],
   };
+  
   $("page-kicker").textContent = titles[name][0];
   $("page-title").textContent = titles[name][1];
-  if (name === "kitty") refreshKitty();
+  
+  if (name === "fund") refreshFund();
   if (name === "expenses") refreshExpenses();
   if (name === "trip") renderTrip();
+}
+
+function logout() {
+  sessionStorage.clear();
+  state.token = null;
+  state.user = null;
+  $("app-shell").classList.add("hidden");
+  $("login-screen").classList.remove("hidden");
 }
 
 function loginSuccess(data) {
@@ -71,24 +84,19 @@ function loginSuccess(data) {
   state.user = data.user;
   sessionStorage.setItem("edith_token", state.token);
   sessionStorage.setItem("edith_user", JSON.stringify(state.user));
+  
   $("login-screen").classList.add("hidden");
   $("app-shell").classList.remove("hidden");
   $("user-name").textContent = state.user.name;
-  $("user-role").textContent = state.user.role === "admin" ? "Administrator" : "Group Member";
+  $("user-role").textContent = state.user.role === "admin" ? "Administrator" : "Crew Member";
   $("user-avatar").textContent = initials(state.user.name);
 
   // Show admin specific controls
-  if (state.user.role === "admin") {
-    $("admin-verification-panel").classList.remove("hidden");
-    $("open-disbursement-modal").classList.remove("hidden");
-    $("open-reconcile-modal").classList.remove("hidden");
-    $("audit-btn").classList.remove("hidden");
-  } else {
-    $("admin-verification-panel").classList.add("hidden");
-    $("open-disbursement-modal").classList.add("hidden");
-    $("open-reconcile-modal").classList.add("hidden");
-    $("audit-btn").classList.add("hidden");
-  }
+  const isAdmin = state.user.role === "admin";
+  $("admin-collect-btn")?.classList.toggle("hidden", !isAdmin);
+  $("open-disbursement-modal")?.classList.toggle("hidden", !isAdmin);
+  $("toggle-all-contributions-btn")?.classList.toggle("hidden", !isAdmin);
+  $("audit-btn")?.classList.toggle("hidden", !isAdmin);
 
   loadApp();
 }
@@ -98,7 +106,7 @@ async function loadApp() {
     const groups = await api("/groups/mine");
     const group = groups.groups.find(g => g.group_code === state.groupCode) || groups.groups[0];
     if (!group) {
-      toast("You are not assigned to a group yet.");
+      toast("You are not assigned to a trip group yet.");
       return;
     }
     state.group = group;
@@ -114,309 +122,415 @@ async function loadApp() {
     state.group = summary.group;
     state.members = members.members;
 
+    populateDropdowns();
+
     await Promise.all([
-      refreshKitty(),
+      refreshFund(),
       refreshExpenses(),
     ]);
 
     renderOverview();
     renderTrip();
-    populateExpensePeople();
   } catch (e) {
     toast(e.message);
   }
 }
 
+function populateDropdowns() {
+  // Populate collect-user-id dropdown for Admin
+  const adminSelect = $("collect-user-id");
+  if (adminSelect) {
+    adminSelect.innerHTML = '<option value="">Choose member...</option>' + 
+      state.members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
+  }
+
+  // Populate expense payer & participant chips
+  const opts = state.members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
+  $("expense-payer").innerHTML = opts;
+  $("expense-participants").innerHTML = opts;
+  [...$("expense-participants").options].forEach(o => o.selected = true);
+  renderParticipantChips();
+}
+
 /* ==================== OVERVIEW MODULE ==================== */
 
 function renderOverview() {
-  const target = state.kittySummary?.fund_target || 96000;
-  const collected = state.kittySummary?.fund_collected || 0;
-  const remaining = Math.max(0, target - collected);
-  const pct = target ? Math.min(100, (collected / target) * 100) : 0;
+  const g = state.group || {};
+  $("overview-trip-title").textContent = g.trip_title || g.name || "EDITH Annual Trip";
+  $("overview-destination").textContent = g.trip_destination || "Manali & Spiti Valley";
+  
+  if (g.trip_start_date && g.trip_end_date) {
+    $("overview-dates").textContent = `${g.trip_start_date} to ${g.trip_end_date}`;
+  } else {
+    $("overview-dates").textContent = "Travel dates not finalized";
+  }
 
-  $("stat-target").textContent = money(target);
+  const target = state.fundSummary?.fund_target || 96000;
+  const collected = state.fundSummary?.fund_collected || 0;
+  const balance = state.fundSummary?.kitty_balance ?? (collected - (state.fundSummary?.fund_disbursed || 0));
+
   $("stat-collected").textContent = money(collected);
+  $("stat-balance").textContent = money(balance);
+  $("stat-target-meta").textContent = `Target: ${money(target)} (₹2,000/mo × 4 members)`;
   $("stat-members").textContent = `${state.members.length} / 4`;
-  $("stat-expenses").textContent = money(state.balances?.total_expenses || 0);
 
-  $("kitty-progress").style.width = `${pct}%`;
-  $("kitty-progress-label").textContent = `${pct.toFixed(1)}% collected`;
-  $("kitty-remaining").textContent = `${money(remaining)} remaining`;
+  const pct = target > 0 ? Math.min(100, Math.max(0, (collected / target) * 100)) : 0;
+  const remaining = Math.max(0, target - collected);
 
-  const stops = state.group?.trip_stops || [];
-  $("overview-destination").textContent = stops.length
-    ? stops.map(s => s.destination).join(" → ")
-    : (state.group?.trip_destination || "Not planned yet");
+  $("fund-progress").style.width = `${pct}%`;
+  $("fund-progress-label").textContent = `${pct.toFixed(1)}% Collected`;
+  $("fund-remaining").textContent = `${money(remaining)} Remaining`;
 
-  $("overview-dates").textContent = state.group?.trip_start_date && state.group?.trip_end_date
-    ? `${state.group.trip_start_date} to ${state.group.trip_end_date}`
-    : "Add your trip details";
-
-  renderBalanceSnapshot();
+  renderOverviewBalances();
 }
 
-function renderBalanceSnapshot() {
-  const target = $("overview-balances");
-  if (!state.balances?.member_balances?.length) {
-    target.innerHTML = '<p class="muted">Add expenses to see group balances.</p>';
+function renderOverviewBalances() {
+  const box = $("overview-balances");
+  if (!state.balances || !Object.keys(state.balances).length) {
+    box.innerHTML = '<p class="muted">No shared expenses logged yet.</p>';
     return;
   }
-  target.innerHTML = state.balances.member_balances.map(m => `
-    <div class="mini-balance">
-      <b>${escapeHtml(m.name)}</b>
-      <span class="${m.net_balance >= 0 ? "positive" : "negative"}">
-        ${m.net_balance >= 0 ? "Gets back " : "Owes "}${money(Math.abs(m.net_balance))}
-      </span>
-    </div>
-  `).join("");
+  box.innerHTML = Object.entries(state.balances).map(([userId, bal]) => {
+    const mem = state.members.find(m => m.id === userId);
+    const name = mem ? mem.name : "Member";
+    const isPos = bal > 0;
+    const isZero = bal === 0;
+    const colorClass = isZero ? "muted" : (isPos ? "positive-text" : "negative-text");
+    const sign = isPos ? "+" : "";
+    return `
+      <div class="balance-mini-card">
+        <b>${escapeHtml(name)}</b>
+        <strong class="${colorClass}">${sign}${money(bal)}</strong>
+      </div>
+    `;
+  }).join("");
 }
 
-/* ==================== SAVINGS KITTY MODULE ==================== */
+/* ==================== TRIP FUND MODULE ==================== */
 
-async function refreshKitty() {
-  if (!state.token || !state.groupCode) return;
+async function refreshFund() {
   try {
     const summary = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/summary`);
-    state.kittySummary = summary;
+    state.fundSummary = summary;
 
     const myContribs = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/my`);
     state.myContributions = myContribs.contributions || [];
 
     const txs = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/transactions`);
-    state.kittyTransactions = txs.transactions || [];
+    state.fundTransactions = txs.transactions || [];
 
     if (state.user?.role === "admin") {
       const allContribs = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/all`);
       state.allContributions = allContribs.contributions || [];
     }
 
-    renderKitty();
-    renderOverview();
+    renderFund();
   } catch (e) {
-    console.error("Kitty refresh error:", e);
+    console.error("Fund refresh error:", e);
   }
 }
 
-function renderKitty() {
-  const ks = state.kittySummary || {};
-  $("kitty-balance-large").textContent = money(ks.kitty_balance || 0);
-  $("kitty-total-large").textContent = money(ks.fund_collected || 0);
-  $("kitty-target-large").textContent = money(ks.fund_target || 96000);
-  $("kitty-disbursed-large").textContent = money(ks.fund_disbursed || 0);
-  $("reconcile-system-bal").textContent = money(ks.kitty_balance || 0);
+function renderFund() {
+  const fs = state.fundSummary || {};
+  const collected = fs.fund_collected || 0;
+  const disbursed = fs.fund_disbursed || 0;
+  const balance = fs.kitty_balance ?? (collected - disbursed);
 
-  const verifiedCount = state.myContributions.filter(c => c.status === "verified").length;
-  $("my-verified-badge").textContent = `${verifiedCount} / ${state.myContributions.length || 12} Verified`;
+  $("fund-balance-large").textContent = money(balance);
+  $("fund-total-large").textContent = money(collected);
+  $("fund-disbursed-large").textContent = money(disbursed);
 
-  // Render My Contribution Cards (12 Months)
-  $("my-contributions-list").innerHTML = state.myContributions.length
-    ? state.myContributions.map(c => {
-      const statusBadges = {
-        verified: '<span class="badge badge-verified">Verified</span>',
-        submitted: '<span class="badge badge-submitted">Under Review</span>',
-        pending: '<span class="badge badge-pending">Pending</span>',
-        rejected: '<span class="badge badge-rejected">Rejected</span>',
-      };
-      const canSubmit = c.status === "pending" || c.status === "rejected";
+  // Badge count for verified payments
+  const myVerifiedCount = state.myContributions.filter(c => c.status === "verified").length;
+  $("my-verified-badge").textContent = `${myVerifiedCount} / 12 Paid`;
+
+  // Render Member Contributions
+  const isAdmin = state.user?.role === "admin";
+  const recordsToRender = (isAdmin && state.showAllMembersSchedule) ? state.allContributions : state.myContributions;
+
+  $("schedule-section-title").textContent = (isAdmin && state.showAllMembersSchedule)
+    ? "All 4 Members' Savings Schedule"
+    : "My Monthly Contributions";
+
+  if (!recordsToRender.length) {
+    $("my-contributions-list").innerHTML = '<p class="muted">No savings schedule generated yet.</p>';
+  } else {
+    $("my-contributions-list").innerHTML = recordsToRender.map(c => {
+      const isPaid = c.status === "verified";
+      const isSubmitted = c.status === "submitted";
+      const badgeHtml = isPaid
+        ? '<span class="badge-paid">✓ Paid</span>'
+        : (isSubmitted ? '<span class="badge-pending">Submitted (Review)</span>' : '<span class="badge-pending">Pending</span>');
+
+      // Admin fast 1-click action or member submit action
+      let actionBtn = "";
+      if (isAdmin && !isPaid) {
+        actionBtn = `<button class="secondary-btn btn-sm" onclick="directVerifyContribution('${c.id}')">✓ Mark Paid</button>`;
+      } else if (!isPaid && !isSubmitted && c.user_id === state.user?.id) {
+        actionBtn = `<button class="secondary-btn btn-sm" onclick="openFundSubmitModal('${c.id}', ${c.month_index}, ${c.amount_due})">Submit UTR</button>`;
+      }
+
+      // Member name label if showing all members
+      const memberName = c.member_name ? `<span class="contrib-member-name">${escapeHtml(c.member_name)}</span>` : "";
+
       return `
         <div class="contrib-card">
-          <div class="contrib-header">
-            <span class="contrib-title">Month ${c.month_index} (${escapeHtml(c.cycle_month || "")})</span>
-            ${statusBadges[c.status] || ""}
+          <div class="contrib-card-head">
+            <span class="contrib-month">Month ${c.month_index} (${c.cycle_month || '2026'})</span>
+            ${badgeHtml}
           </div>
-          <div class="contrib-due">Due: ${escapeHtml(c.due_date || "10th of month")}</div>
-          <div class="contrib-amount">${money(c.amount_due)}</div>
-          ${c.utr_reference ? `<div class="contrib-utr">UTR: ${escapeHtml(c.utr_reference)}</div>` : ""}
-          ${c.rejection_reason ? `<small class="error-text">Reason: ${escapeHtml(c.rejection_reason)}</small>` : ""}
-          <div class="contrib-action">
-            ${canSubmit
-              ? `<button class="primary-btn btn-sm full" onclick="openSubmitModal('${c.id}', ${c.month_index}, ${c.amount_due})">Submit UTR Reference</button>`
-              : `<small class="muted">${c.status === "verified" ? "Credited to Kitty" : "Awaiting admin confirmation"}</small>`}
+          <div class="contrib-amount-row">
+            <span class="contrib-amount">${money(c.amount_due || c.amount || 2000)}</span>
+            ${memberName}
+          </div>
+          <div class="contrib-card-footer">
+            <small class="muted">${c.utr_reference ? `Ref: ${escapeHtml(c.utr_reference)}` : 'Due: 10th of month'}</small>
+            ${actionBtn}
           </div>
         </div>
       `;
-    }).join("")
-    : '<p class="muted">No contributions scheduled yet.</p>';
-
-  // Render Admin Verification Queue (Admin Only)
-  if (state.user?.role === "admin") {
-    const pendingReview = (state.allContributions || []).filter(c => c.status === "submitted");
-    $("admin-verification-list").innerHTML = pendingReview.length
-      ? pendingReview.map(c => `
-        <div class="verif-card">
-          <div class="verif-info">
-            <b>${escapeHtml(c.user_name)} · Month ${c.month_index} (${money(c.amount_due)})</b>
-            <span>UTR: <code style="color:var(--mint);">${escapeHtml(c.utr_reference)}</code> · Submitted: ${String(c.submitted_at || "").slice(0, 10)}</span>
-            ${c.proof_url ? `<br><a href="${escapeHtml(c.proof_url)}" target="_blank" style="color:var(--green);font-size:10px;">View Attached Receipt ↗</a>` : ""}
-          </div>
-          <div class="verif-actions">
-            <button class="primary-btn btn-sm btn-approve" onclick="verifyContribution('${c.id}')">Approve & Credit</button>
-            <button class="btn-sm btn-reject" onclick="rejectContribution('${c.id}')">Reject</button>
-          </div>
-        </div>
-      `).join("")
-      : '<p class="muted">No submitted payments awaiting verification.</p>';
+    }).join("");
   }
 
-  // Render Kitty Common Disbursements
-  $("kitty-transactions-list").innerHTML = state.kittyTransactions.length
-    ? state.kittyTransactions.map(tx => {
-      const isDisb = tx.transaction_type === "disbursement";
-      const isCredit = tx.transaction_type === "contribution_credit";
-      return `
-        <div class="disb-card">
-          <div>
-            <b>${escapeHtml(tx.description || tx.category)}</b>
-            <small>${escapeHtml(tx.created_at ? tx.created_at.slice(0, 10) : "")} ${tx.recipient ? "· Paid to: " + escapeHtml(tx.recipient) : ""}</small>
-          </div>
-          <div class="disb-amount" style="color:${isCredit ? 'var(--mint)' : '#fca5a5'};">
-            ${isCredit ? '+' : '-'}${money(tx.amount)}
-          </div>
+  // Render Fund Disbursements
+  if (!state.fundTransactions.length) {
+    $("fund-transactions-list").innerHTML = '<p class="muted">No payments made from the fund yet.</p>';
+  } else {
+    $("fund-transactions-list").innerHTML = state.fundTransactions.map(tx => `
+      <div class="disb-card">
+        <div>
+          <b>${escapeHtml(tx.description || tx.recipient_name || 'Common Expense')}</b>
+          <small>${tx.created_at ? tx.created_at.slice(0, 10) : ''} · Logged by Admin</small>
         </div>
-      `;
-    }).join("")
-    : '<p class="muted">No disbursements or common expenses recorded from Kitty yet.</p>';
+        <span class="disb-amount-negative">-${money(tx.amount)}</span>
+      </div>
+    `).join("");
+  }
 }
 
-function openSubmitModal(id, monthIndex, amount) {
-  $("submit-contrib-id").value = id;
-  $("submit-contrib-desc").textContent = `Submit payment reference for Month ${monthIndex} (${money(amount)})`;
-  $("submit-date").value = dateToday();
-  $("submit-utr").value = "";
-  $("submit-proof-url").value = "";
-  $("submit-notes").value = "";
-  $("kitty-submit-error").textContent = "";
-  $("kitty-submit-dialog").showModal();
-}
-
-async function verifyContribution(contribId) {
-  if (!confirm("Confirm that funds have been received in the custodian bank account?")) return;
+// 1-Click Fast Direct Verification by Admin
+window.directVerifyContribution = async function(contribId) {
   try {
     await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/${contribId}/verify`, {
       method: "PUT",
     });
-    toast("Contribution verified and credited to Kitty!");
-    await refreshKitty();
+    toast("Payment marked as verified and added to fund!");
+    await refreshFund();
+    renderOverview();
   } catch (e) {
     toast(e.message);
   }
+};
+
+// Admin Direct Collection Modal
+function openAdminCollectModal() {
+  $("admin-collect-error").textContent = "";
+  $("admin-collect-dialog").showModal();
 }
 
-async function rejectContribution(contribId) {
-  const reason = prompt("Enter the rejection reason (e.g. UTR not found on bank statement):");
-  if (!reason) return;
+async function submitAdminCollection(ev) {
+  ev.preventDefault();
+  const error = $("admin-collect-error");
+  error.textContent = "";
+
+  const userId = $("collect-user-id").value;
+  if (!userId) {
+    error.textContent = "Please select a member.";
+    return;
+  }
+
   try {
-    await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/${contribId}/reject`, {
-      method: "PUT",
-      body: JSON.stringify({ reason: reason.trim() }),
+    const payload = {
+      user_id: userId,
+      month_index: Number($("collect-month-index").value),
+      amount: Number($("collect-amount").value),
+      payment_mode: $("collect-mode").value,
+      notes: $("collect-notes").value.trim() || "Collected directly by Admin",
+    };
+
+    const res = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/admin-collect`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
-    toast("Contribution rejected.");
-    await refreshKitty();
+
+    $("admin-collect-dialog").close();
+    toast(res.message || "Payment recorded successfully!");
+    await refreshFund();
+    renderOverview();
   } catch (e) {
-    toast(e.message);
+    error.textContent = e.message;
   }
 }
 
-/* ==================== EXPENSES & KITTY SPLIT MODULE ==================== */
+// Member UTR Reference Submission
+window.openFundSubmitModal = function(contribId, monthIndex, amount) {
+  $("submit-contrib-id").value = contribId;
+  $("submit-contrib-desc").textContent = `Month ${monthIndex} payment of ${money(amount)}. Enter transaction reference.`;
+  $("submit-date").value = dateToday();
+  $("submit-utr").value = "";
+  $("submit-notes").value = "";
+  $("fund-submit-error").textContent = "";
+  $("fund-submit-dialog").showModal();
+};
+
+async function submitFundReference(ev) {
+  ev.preventDefault();
+  const id = $("submit-contrib-id").value;
+  const error = $("fund-submit-error");
+  error.textContent = "";
+
+  try {
+    await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/${id}/submit`, {
+      method: "POST",
+      body: JSON.stringify({
+        utr_reference: $("submit-utr").value.trim(),
+        payment_date: $("submit-date").value,
+        notes: $("submit-notes").value.trim(),
+      }),
+    });
+    $("fund-submit-dialog").close();
+    toast("Reference submitted! Admin will confirm.");
+    await refreshFund();
+  } catch (e) {
+    error.textContent = e.message;
+  }
+}
+
+// Fund Spending Disbursement Form
+function openDisbursementModal() {
+  $("disb-date").value = dateToday();
+  $("fund-disb-error").textContent = "";
+  $("fund-disbursement-dialog").showModal();
+}
+
+async function submitDisbursement(ev) {
+  ev.preventDefault();
+  const error = $("fund-disb-error");
+  error.textContent = "";
+
+  try {
+    await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/disbursements`, {
+      method: "POST",
+      body: JSON.stringify({
+        amount: Number($("disb-amount").value),
+        category: $("disb-category").value,
+        recipient: $("disb-recipient").value.trim(),
+        description: $("disb-desc").value.trim(),
+        disbursement_date: $("disb-date").value,
+      }),
+    });
+    $("fund-disbursement-dialog").close();
+    toast("Payment recorded and deducted from fund balance.");
+    await refreshFund();
+    renderOverview();
+  } catch (e) {
+    error.textContent = e.message;
+  }
+}
+
+/* ==================== EXPENSE SPLITTER MODULE ==================== */
 
 async function refreshExpenses() {
-  if (!state.token || !state.groupCode) return;
   try {
-    const [expenses, balances] = await Promise.all([
+    const [expData, balData] = await Promise.all([
       api(`/groups/${encodeURIComponent(state.groupCode)}/expenses`),
       api(`/groups/${encodeURIComponent(state.groupCode)}/balances`),
     ]);
-    state.expenses = expenses.expenses || [];
-    state.balances = balances;
-    renderExpenses();
-    renderOverview();
+    state.expenses = expData.expenses || [];
+    state.balances = balData.balances || {};
+    renderExpenses(balData);
+    renderOverviewBalances();
   } catch (e) {
-    $("expense-list").innerHTML = `<p class="error-text">${escapeHtml(e.message)}</p>`;
+    console.error("Expense refresh error:", e);
   }
 }
 
-function renderExpenses() {
-  $("expense-total").textContent = money(state.balances?.total_expenses || 0);
-  $("stat-expenses").textContent = money(state.balances?.total_expenses || 0);
+function renderExpenses(balData) {
+  const total = state.expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
+  $("stat-expenses").textContent = money(total);
+  $("expense-total").textContent = money(total);
 
-  const me = state.balances?.member_balances?.find(x => x.user_id === state.user?.id);
-  $("you-are-owed").textContent = money(Math.max(0, me?.net_balance || 0));
-  $("you-owe").textContent = money(Math.max(0, -(me?.net_balance || 0)));
+  const myId = state.user?.id;
+  const myBal = Number(state.balances[myId] || 0);
+  $("you-are-owed").textContent = myBal > 0 ? money(myBal) : "₹0";
+  $("you-owe").textContent = myBal < 0 ? money(Math.abs(myBal)) : "₹0";
 
-  $("expense-list").innerHTML = state.expenses.length
-    ? state.expenses.map(e => {
-      const payer = state.members.find(m => m.id === e.paid_by_user_id)?.name || "Member";
-      const date = String(e.expense_date || "").slice(0, 10);
-      const isReversed = e.status === "reversed";
-      const canReverse = !isReversed && (e.created_by === state.user?.id || state.user?.role === "admin");
-      const icons = { Accommodation: "⌂", Food: "☕", Transport: "↗", Fuel: "◉", Activities: "✦", Shopping: "◇", Other: "•" };
+  // Render Expense List
+  const listEl = $("expense-list");
+  if (!state.expenses.length) {
+    listEl.innerHTML = '<p class="muted">No shared expenses logged yet. Tap "+ Add Expense" to get started.</p>';
+  } else {
+    listEl.innerHTML = state.expenses.map(e => {
+      const payer = state.members.find(m => m.id === e.paid_by_user_id);
+      const payerName = payer ? payer.name : "Member";
+      const categoryIcons = {
+        "Food & Dining": "🍔",
+        "Accommodation": "🏨",
+        "Fuel": "⛽",
+        "Transport / Cab": "🚕",
+        "Activities": "🎟️",
+        "Shopping": "🛍️",
+        "Other": "💳"
+      };
+      const icon = categoryIcons[e.category] || "💳";
       return `
-        <div class="expense-item" style="${isReversed ? 'opacity:0.5;text-decoration:line-through;' : ''}">
-          <div class="expense-emoji">${icons[e.category] || "•"}</div>
-          <div class="expense-info">
-            <b>${escapeHtml(e.title)} ${isReversed ? '<span class="badge badge-rejected">Reversed</span>' : ''}</b>
-            <small>${escapeHtml(payer)} paid · ${escapeHtml(date)} · ${escapeHtml(e.category)}</small>
-            ${e.notes ? `<small class="muted">${escapeHtml(e.notes)}</small>` : ""}
+        <div class="expense-row-item">
+          <div class="expense-icon-badge">${icon}</div>
+          <div class="expense-main-info">
+            <b>${escapeHtml(e.title)}</b>
+            <small>Paid by ${escapeHtml(payerName)} · ${e.expense_date ? e.expense_date.slice(0, 10) : ''} · ${escapeHtml(e.category || 'Expense')}</small>
           </div>
-          <div class="expense-amount">
-            ${money(e.amount)}
-            <small>${e.split_type === "equal" ? "Equal split" : e.split_type === "percentage" ? "Percentage split" : "Custom split"}</small>
-            ${canReverse ? `<button class="text-btn" style="color:var(--red);font-size:9px;" onclick="reverseExpense('${e.id}')">Reverse</button>` : ""}
+          <div class="expense-amount-side">
+            <strong>${money(e.amount)}</strong>
+            <small>${escapeHtml(e.split_type)}</small>
           </div>
         </div>
       `;
-    }).join("")
-    : '<p class="muted">No trip expenses recorded yet. Add your first one.</p>';
+    }).join("");
+  }
 
-  $("balance-list").innerHTML = (state.balances?.member_balances || []).map(m => `
-    <div class="balance-row">
-      <span>${escapeHtml(m.name)}</span>
-      <strong class="${m.net_balance >= 0 ? "positive" : "negative"}">
-        ${m.net_balance >= 0 ? "+" : "−"}${money(Math.abs(m.net_balance))}
-      </strong>
-    </div>
-  `).join("") || '<p class="muted">No balances yet.</p>';
-
-  $("settlement-list").innerHTML = (state.balances?.suggested_settlements || []).map(t => {
-    const isDebtor = t.from_user_id === state.user?.id;
+  // Render Balances List
+  const balBox = $("balance-list");
+  balBox.innerHTML = Object.entries(state.balances).map(([uid, bal]) => {
+    const mem = state.members.find(m => m.id === uid);
+    const name = mem ? mem.name : "Member";
+    const isPos = bal > 0;
+    const isZero = bal === 0;
+    const colorClass = isZero ? "muted" : (isPos ? "positive-text" : "negative-text");
+    const sign = isPos ? "+" : "";
     return `
-      <div class="settlement-line" style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <span>${escapeHtml(t.from_name)} owes ${escapeHtml(t.to_name)}</span>
-          <b style="display:block;color:var(--mint);">${money(t.amount)}</b>
-        </div>
-        ${isDebtor ? `<button class="soft-btn btn-sm" onclick="openSettleModal('${t.from_user_id}', '${t.to_user_id}', '${escapeHtml(t.to_name)}', ${t.amount})">Pay Now</button>` : ""}
+      <div class="balance-item-row">
+        <span>${escapeHtml(name)}</span>
+        <b class="${colorClass}">${sign}${money(bal)}</b>
       </div>
     `;
-  }).join("") || '<p class="muted">All settled up! No debts pending.</p>';
-}
+  }).join("");
 
-function openSettleModal(fromId, toId, toName, amount) {
-  $("settle-from-id").value = fromId;
-  $("settle-to-id").value = toId;
-  $("settle-direction-desc").textContent = `Paying ${toName} to settle balance`;
-  $("settle-amount").value = amount;
-  $("settle-date").value = dateToday();
-  $("settle-note").value = "Settled via UPI";
-  $("settle-error").textContent = "";
-  $("settle-dialog").showModal();
-}
-
-async function reverseExpense(expenseId) {
-  const reason = prompt("Reason for reversing this expense entry:");
-  if (!reason) return;
-  try {
-    await api(`/groups/${encodeURIComponent(state.groupCode)}/expenses/${expenseId}/reverse?reason=${encodeURIComponent(reason)}`, {
-      method: "POST",
-    });
-    toast("Expense reversed.");
-    await refreshExpenses();
-  } catch (e) {
-    toast(e.message);
+  // Render Suggested Settlements
+  const settlements = balData?.suggested_settlements || [];
+  const setBox = $("settlement-list");
+  if (!settlements.length) {
+    setBox.innerHTML = '<p class="muted">All balances are settled up.</p>';
+  } else {
+    setBox.innerHTML = settlements.map(s => {
+      const fromMem = state.members.find(m => m.id === s.from_user_id);
+      const toMem = state.members.find(m => m.id === s.to_user_id);
+      const fromName = fromMem ? fromMem.name : "Member";
+      const toName = toMem ? toMem.name : "Member";
+      return `
+        <div class="settle-item">
+          <span><b>${escapeHtml(fromName)}</b> pays <b>${escapeHtml(toName)}</b></span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong class="negative-text">${money(s.amount)}</strong>
+            <button class="settle-btn" onclick="openSettleModal('${s.from_user_id}', '${s.to_user_id}', ${s.amount}, '${escapeHtml(fromName)}', '${escapeHtml(toName)}')">Settle</button>
+          </div>
+        </div>
+      `;
+    }).join("");
   }
 }
 
+// Participant Chips Selection
 function renderParticipantChips() {
   const container = $("expense-participants-chips");
   if (!container) return;
@@ -456,14 +570,6 @@ function selectAllParticipants(selectState = true) {
   renderSplitEditor();
 }
 
-function populateExpensePeople() {
-  const opts = state.members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("");
-  $("expense-payer").innerHTML = opts;
-  $("expense-participants").innerHTML = opts;
-  [...$("expense-participants").options].forEach(o => o.selected = true);
-  renderParticipantChips();
-}
-
 function renderSplitEditor() {
   const mode = $("split-type").value;
   const selected = [...$("expense-participants").selectedOptions];
@@ -482,9 +588,9 @@ function renderSplitEditor() {
   `).join("") || '<small class="muted">Select participants first.</small>';
 }
 
-function openExpenseDialog() {
+function openExpenseModal() {
   if (!state.members.length) {
-    toast("Group member list is not available.");
+    toast("Member list is loading...");
     return;
   }
   $("expense-date").value = dateToday();
@@ -497,6 +603,7 @@ async function submitExpense(ev) {
   ev.preventDefault();
   const error = $("expense-form-error");
   error.textContent = "";
+
   try {
     const participants = [...$("expense-participants").selectedOptions].map(o => o.value);
     const splitType = $("split-type").value;
@@ -508,292 +615,73 @@ async function submitExpense(ev) {
       split_type: splitType,
       participant_user_ids: participants,
       expense_date: $("expense-date").value,
-      notes: $("expense-notes").value,
+      notes: $("expense-notes").value.trim(),
     };
-    if (splitType !== "equal") {
-      const values = [...document.querySelectorAll("[data-split-user]")];
-      payload.splits = values.map(input => splitType === "percentage"
-        ? { user_id: input.dataset.splitUser, share_percentage: Number(input.value) }
-        : { user_id: input.dataset.splitUser, share_amount: Number(input.value) }
-      );
-      if (payload.splits.length !== participants.length || payload.splits.some(x => Object.values(x).some(v => v === undefined || v === null || Number.isNaN(v)))) {
-        throw new Error("Enter a split value for every selected participant.");
-      }
-      const total = payload.splits.reduce((sum, x) => sum + (splitType === "percentage" ? x.share_percentage : x.share_amount), 0);
-      const expected = splitType === "percentage" ? 100 : payload.amount;
-      if (Math.abs(total - expected) > 0.0001) {
-        throw new Error(`Split values must add up to ${expected}${splitType === "percentage" ? "%" : " rupees"}.`);
-      }
+
+    if (!payload.participant_user_ids.length) {
+      error.textContent = "Select at least one participant sharing this expense.";
+      return;
     }
+
+    if (splitType === "custom") {
+      const splits = [];
+      let sum = 0;
+      document.querySelectorAll("[data-split-user]").forEach(inp => {
+        const amt = Number(inp.value || 0);
+        sum += amt;
+        splits.push({ user_id: inp.dataset.splitUser, share_amount: amt });
+      });
+      if (Math.abs(sum - payload.amount) > 0.01) {
+        error.textContent = `Custom shares sum to ₹${sum}, but expense amount is ₹${payload.amount}.`;
+        return;
+      }
+      payload.custom_splits = splits;
+    } else if (splitType === "percentage") {
+      const splits = [];
+      let sum = 0;
+      document.querySelectorAll("[data-split-user]").forEach(inp => {
+        const pct = Number(inp.value || 0);
+        sum += pct;
+        splits.push({ user_id: inp.dataset.splitUser, percentage: pct });
+      });
+      if (Math.abs(sum - 100) > 0.01) {
+        error.textContent = `Percentages sum to ${sum}%, must equal 100%.`;
+        return;
+      }
+      payload.custom_splits = splits;
+    }
+
     await api(`/groups/${encodeURIComponent(state.groupCode)}/expenses`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
+
     $("expense-dialog").close();
-    $("expense-form").reset();
-    toast("Expense saved.");
+    toast("Expense saved and balances updated!");
     await refreshExpenses();
-  } catch (e) {
-    error.textContent = e.message;
-  }
-}
-
-/* ==================== TRIP PLANNER MODULE ==================== */
-
-function renderTrip() {
-  if (!state.group) return;
-  const stops = state.group.trip_stops || [];
-  $("trip-title-display").textContent = state.group.trip_title || state.group.name;
-  $("trip-dates-display").textContent = [state.group.trip_start_date, state.group.trip_end_date].filter(Boolean).join(" → ") || "Dates not set";
-  $("trip-budget-display").textContent = money(state.group.planned_trip_budget || 0);
-  $("trip-notes-display").textContent = state.group.trip_notes || "No notes added.";
-  $("trip-stops").innerHTML = stops.length
-    ? stops.map((s, i) => `
-      <article class="stop-card">
-        <p class="eyebrow">STOP ${String(i + 1).padStart(2, "0")}</p>
-        <h3>${escapeHtml(s.destination)}</h3>
-        <p>${escapeHtml(s.arrival_date || "Date TBD")}${s.departure_date ? " → " + escapeHtml(s.departure_date) : ""}</p>
-        ${s.transport ? `<p>Transport: ${escapeHtml(s.transport)}</p>` : ""}
-        ${s.accommodation ? `<p>Stay: ${escapeHtml(s.accommodation)}</p>` : ""}
-        ${s.notes ? `<p>${escapeHtml(s.notes)}</p>` : ""}
-      </article>
-    `).join("")
-    : '<div class="empty-state">No destinations added yet. Add your first stop to start planning.</div>';
-}
-
-function addStopEditor(data = {}) {
-  const wrap = document.createElement("div");
-  wrap.className = "stop-edit-card";
-  wrap.innerHTML = `
-    <div class="stop-edit-head"><b>DESTINATION STOP</b><button type="button" class="text-btn remove-stop">Remove</button></div>
-    <label>Destination<input class="stop-destination" required maxlength="160" value="${escapeHtml(data.destination || "")}" placeholder="e.g. Manali"></label>
-    <div class="form-row">
-      <label>Arrival<input class="stop-arrival" type="date" value="${escapeHtml(data.arrival_date || "")}"></label>
-      <label>Departure<input class="stop-departure" type="date" value="${escapeHtml(data.departure_date || "")}"></label>
-    </div>
-    <div class="form-row">
-      <label>Transport<input class="stop-transport" value="${escapeHtml(data.transport || "")}" placeholder="Train, flight, car..."></label>
-      <label>Accommodation<input class="stop-accommodation" value="${escapeHtml(data.accommodation || "")}" placeholder="Hotel / stay"></label>
-    </div>
-    <label>Notes<textarea class="stop-notes" rows="2">${escapeHtml(data.notes || "")}</textarea></label>
-  `;
-  wrap.querySelector(".remove-stop").addEventListener("click", () => wrap.remove());
-  $("stop-editor").appendChild(wrap);
-}
-
-function openTripDialog() {
-  const g = state.group || {};
-  $("trip-title-input").value = g.trip_title || g.name || "Our Trip";
-  $("trip-start").value = g.trip_start_date || "";
-  $("trip-end").value = g.trip_end_date || "";
-  $("trip-budget-input").value = g.planned_trip_budget || 0;
-  $("trip-notes-input").value = g.trip_notes || "";
-  $("stop-editor").innerHTML = "";
-  (g.trip_stops || []).forEach(s => addStopEditor(s));
-  if (!(g.trip_stops || []).length) addStopEditor();
-  $("trip-form-error").textContent = "";
-  $("trip-dialog").showModal();
-}
-
-async function saveTrip(ev) {
-  ev.preventDefault();
-  const error = $("trip-form-error");
-  error.textContent = "";
-  try {
-    const stops = [...document.querySelectorAll(".stop-edit-card")].map(card => ({
-      destination: card.querySelector(".stop-destination").value.trim(),
-      arrival_date: card.querySelector(".stop-arrival").value || null,
-      departure_date: card.querySelector(".stop-departure").value || null,
-      transport: card.querySelector(".stop-transport").value,
-      accommodation: card.querySelector(".stop-accommodation").value,
-      notes: card.querySelector(".stop-notes").value,
-    }));
-    const payload = {
-      trip_title: $("trip-title-input").value.trim(),
-      trip_start_date: $("trip-start").value || null,
-      trip_end_date: $("trip-end").value || null,
-      planned_trip_budget: Number($("trip-budget-input").value || 0),
-      stops,
-      notes: $("trip-notes-input").value,
-    };
-    await api(`/groups/${encodeURIComponent(state.groupCode)}/trip-plan`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
-    const refreshed = await api(`/groups/${encodeURIComponent(state.groupCode)}/summary`);
-    state.group = refreshed.group;
-    $("trip-dialog").close();
-    renderTrip();
     renderOverview();
-    toast("Trip plan updated.");
   } catch (e) {
     error.textContent = e.message;
   }
 }
 
-/* ==================== AUDIT & FORM SUBMISSIONS ==================== */
+// Settle Debt Modal
+window.openSettleModal = function(fromId, toId, amount, fromName, toName) {
+  $("settle-from-id").value = fromId;
+  $("settle-to-id").value = toId;
+  $("settle-direction-desc").textContent = `${fromName} paying ${toName}`;
+  $("settle-amount").value = amount;
+  $("settle-date").value = dateToday();
+  $("settle-note").value = "";
+  $("settle-error").textContent = "";
+  $("settle-dialog").showModal();
+};
 
-async function openAuditDialog() {
-  $("audit-dialog").showModal();
-  $("audit-log-stream").innerHTML = '<p class="muted">Loading audit entries...</p>';
-  try {
-    const data = await api("/admin/audit-logs?limit=50");
-    $("audit-log-stream").innerHTML = data.audit_logs?.length
-      ? data.audit_logs.map(log => `
-        <div class="audit-item">
-          <div class="audit-header">
-            <span><b class="audit-action">${escapeHtml(log.action)}</b> by ${escapeHtml(log.actor_name)}</span>
-            <span>${String(log.timestamp || "").replace("T", " ").slice(0, 19)}</span>
-          </div>
-          <div class="audit-notes">${escapeHtml(log.notes || "No details")}</div>
-          ${log.after_state ? `<pre>${escapeHtml(JSON.stringify(log.after_state, null, 2))}</pre>` : ""}
-        </div>
-      `).join("")
-      : '<p class="muted">No audit logs recorded yet.</p>';
-  } catch (e) {
-    $("audit-log-stream").innerHTML = `<p class="error-text">${escapeHtml(e.message)}</p>`;
-  }
-}
-
-// Global Event Listeners
-window.openSubmitModal = openSubmitModal;
-window.verifyContribution = verifyContribution;
-window.rejectContribution = rejectContribution;
-window.reverseExpense = reverseExpense;
-window.openSettleModal = openSettleModal;
-
-$("login-form").addEventListener("submit", async ev => {
-  ev.preventDefault();
-  $("login-error").textContent = "";
-  try {
-    const data = await api("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        email: $("login-email").value,
-        password: $("login-password").value,
-      }),
-    });
-    loginSuccess(data);
-  } catch (e) {
-    $("login-error").textContent = e.message;
-  }
-});
-
-function logout() {
-  sessionStorage.clear();
-  state.token = null;
-  state.user = null;
-  $("app-shell").classList.add("hidden");
-  $("login-screen").classList.remove("hidden");
-}
-
-$("logout-btn").addEventListener("click", logout);
-
-document.querySelectorAll(".nav-link").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
-document.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => showView(b.dataset.go)));
-$("refresh-btn").addEventListener("click", loadApp);
-
-$("open-expense-modal").addEventListener("click", openExpenseDialog);
-$("expense-form").addEventListener("submit", submitExpense);
-$("split-type").addEventListener("change", renderSplitEditor);
-$("expense-participants").addEventListener("change", renderSplitEditor);
-
-$("edit-trip-btn").addEventListener("click", openTripDialog);
-$("trip-form").addEventListener("submit", saveTrip);
-$("add-stop-btn").addEventListener("click", () => addStopEditor());
-
-// Kitty Submit Form
-$("kitty-submit-form").addEventListener("submit", async ev => {
-  ev.preventDefault();
-  const id = $("submit-contrib-id").value;
-  const error = $("kitty-submit-error");
-  error.textContent = "";
-  try {
-    await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/contributions/${id}/submit`, {
-      method: "POST",
-      body: JSON.stringify({
-        utr_reference: $("submit-utr").value.trim(),
-        payment_date: $("submit-date").value,
-        proof_url: $("submit-proof-url").value.trim() || null,
-        notes: $("submit-notes").value.trim(),
-      }),
-    });
-    $("kitty-submit-dialog").close();
-    toast("UTR reference submitted for admin verification.");
-    await refreshKitty();
-  } catch (e) {
-    error.textContent = e.message;
-  }
-});
-
-// Kitty Disbursement Form
-$("open-disbursement-modal")?.addEventListener("click", () => {
-  $("disb-amount").value = "";
-  $("disb-date").value = dateToday();
-  $("disb-recipient").value = "";
-  $("disb-desc").value = "";
-  $("kitty-disb-error").textContent = "";
-  $("kitty-disbursement-dialog").showModal();
-});
-
-$("kitty-disbursement-form")?.addEventListener("submit", async ev => {
-  ev.preventDefault();
-  const error = $("kitty-disb-error");
-  error.textContent = "";
-  try {
-    await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/disbursements`, {
-      method: "POST",
-      body: JSON.stringify({
-        amount: Number($("disb-amount").value),
-        category: $("disb-category").value,
-        description: $("disb-desc").value.trim(),
-        recipient: $("disb-recipient").value.trim(),
-        disbursement_date: $("disb-date").value,
-      }),
-    });
-    $("kitty-disbursement-dialog").close();
-    toast("Disbursement recorded and deducted from Kitty balance.");
-    await refreshKitty();
-  } catch (e) {
-    error.textContent = e.message;
-  }
-});
-
-// Kitty Bank Reconciliation Form
-$("open-reconcile-modal")?.addEventListener("click", () => {
-  $("reconcile-actual-bal").value = state.kittySummary?.kitty_balance || 0;
-  $("reconcile-notes").value = "";
-  $("reconcile-apply-adjust").checked = false;
-  $("reconcile-error").textContent = "";
-  $("kitty-reconcile-dialog").showModal();
-});
-
-$("kitty-reconcile-form")?.addEventListener("submit", async ev => {
-  ev.preventDefault();
-  const error = $("reconcile-error");
-  error.textContent = "";
-  try {
-    const res = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/reconcile`, {
-      method: "POST",
-      body: JSON.stringify({
-        actual_bank_balance: Number($("reconcile-actual-bal").value),
-        notes: $("reconcile-notes").value.trim(),
-        apply_adjustment: $("reconcile-apply-adjust").checked,
-      }),
-    });
-    $("kitty-reconcile-dialog").close();
-    toast(`Audit completed. Status: ${res.status} (Variance: ₹${res.variance})`);
-    await refreshKitty();
-  } catch (e) {
-    error.textContent = e.message;
-  }
-});
-
-// Settlement Proposal Form
-$("settle-form")?.addEventListener("submit", async ev => {
+async function submitSettlement(ev) {
   ev.preventDefault();
   const error = $("settle-error");
   error.textContent = "";
+
   try {
     await api(`/groups/${encodeURIComponent(state.groupCode)}/settlements`, {
       method: "POST",
@@ -806,29 +694,217 @@ $("settle-form")?.addEventListener("submit", async ev => {
       }),
     });
     $("settle-dialog").close();
-    toast("Settlement payment proposed. Recipient can now confirm receipt.");
+    toast("Settlement recorded. Balances refreshed.");
     await refreshExpenses();
+    renderOverview();
+  } catch (e) {
+    error.textContent = e.message;
+  }
+}
+
+/* ==================== ITINERARY MODULE ==================== */
+
+function renderTrip() {
+  const g = state.group || {};
+  $("trip-title-display").textContent = g.trip_title || g.name || "EDITH Annual Trip";
+  $("trip-budget-display").textContent = money(g.planned_trip_budget || 96000);
+  $("trip-notes-display").textContent = g.trip_notes || "No notes added yet.";
+
+  if (g.trip_start_date && g.trip_end_date) {
+    $("trip-dates-display").textContent = `${g.trip_start_date} to ${g.trip_end_date}`;
+  } else {
+    $("trip-dates-display").textContent = "Set travel dates";
+  }
+
+  const stops = g.trip_stops || [];
+  const container = $("trip-stops");
+  if (!stops.length) {
+    container.innerHTML = '<div class="empty-state">No destinations added yet. Tap "Edit Route" to plan your stops.</div>';
+  } else {
+    container.innerHTML = stops.map((s, idx) => `
+      <div class="stop-card">
+        <div>
+          <h3>Stop ${s.stop_number || idx + 1}: ${escapeHtml(s.destination_name || s.destination)}</h3>
+          <p>${s.arrival_date ? `Arrives: ${s.arrival_date}` : ''} ${s.nights ? `· ${s.nights} nights` : ''} ${s.transit_mode ? `· Transit: ${s.transit_mode}` : ''}</p>
+        </div>
+      </div>
+    `).join("");
+  }
+}
+
+function openTripDialog() {
+  const g = state.group || {};
+  $("trip-title-input").value = g.trip_title || g.name || "";
+  $("trip-start").value = g.trip_start_date || "";
+  $("trip-end").value = g.trip_end_date || "";
+  $("trip-budget-input").value = g.planned_trip_budget || 96000;
+  $("trip-notes-input").value = g.trip_notes || "";
+  $("trip-form-error").textContent = "";
+
+  const container = $("stop-editor");
+  container.innerHTML = "";
+  const stops = g.trip_stops || [];
+  stops.forEach(addStopInputRow);
+  $("trip-dialog").showModal();
+}
+
+function addStopInputRow(stop = {}) {
+  const container = $("stop-editor");
+  const div = document.createElement("div");
+  div.className = "stop-edit-card";
+  div.innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+      <b style="font-size:12px;">Stop Destination</b>
+      <button type="button" class="secondary-btn btn-sm" onclick="this.closest('.stop-edit-card').remove()">Remove</button>
+    </div>
+    <input class="stop-name" placeholder="Destination name" value="${escapeHtml(stop.destination_name || stop.destination || '')}" required>
+    <div class="form-row" style="margin-top:8px;">
+      <input type="date" class="stop-date" value="${stop.arrival_date || ''}">
+      <input type="number" class="stop-nights" min="0" placeholder="Nights" value="${stop.nights ?? 1}">
+    </div>
+  `;
+  container.appendChild(div);
+}
+
+async function submitTripPlan(ev) {
+  ev.preventDefault();
+  const error = $("trip-form-error");
+  error.textContent = "";
+
+  const stops = [];
+  document.querySelectorAll(".stop-edit-card").forEach((card, idx) => {
+    const dest = card.querySelector(".stop-name").value.trim();
+    if (dest) {
+      stops.push({
+        stop_number: idx + 1,
+        destination_name: dest,
+        arrival_date: card.querySelector(".stop-date").value || null,
+        nights: Number(card.querySelector(".stop-nights").value || 1),
+      });
+    }
+  });
+
+  try {
+    await api(`/groups/${encodeURIComponent(state.groupCode)}/trip`, {
+      method: "PUT",
+      body: JSON.stringify({
+        trip_title: $("trip-title-input").value.trim(),
+        trip_start_date: $("trip-start").value || null,
+        trip_end_date: $("trip-end").value || null,
+        planned_trip_budget: Number($("trip-budget-input").value || 0),
+        notes: $("trip-notes-input").value.trim(),
+        stops: stops.map(s => ({
+          destination: s.destination_name,
+          arrival_date: s.arrival_date,
+          departure_date: null,
+          transport: "",
+          accommodation: "",
+          notes: `${s.nights} nights`,
+        })),
+      }),
+    });
+    $("trip-dialog").close();
+    toast("Trip details saved!");
+    await loadApp();
+  } catch (e) {
+    error.textContent = e.message;
+  }
+}
+
+/* ==================== AUDIT LOGS ==================== */
+
+async function openAuditDialog() {
+  $("audit-dialog").showModal();
+  const stream = $("audit-log-stream");
+  stream.innerHTML = '<p class="muted">Loading audit history...</p>';
+
+  try {
+    const res = await api("/admin/audit-logs?limit=40");
+    const logs = res.logs || [];
+    if (!logs.length) {
+      stream.innerHTML = '<p class="muted">No audit events recorded yet.</p>';
+      return;
+    }
+    stream.innerHTML = logs.map(l => `
+      <div class="audit-item">
+        <div style="display:flex;justify-content:space-between;color:var(--muted);margin-bottom:4px;">
+          <span><b>${escapeHtml(l.actor_name || 'System')}</b> (${escapeHtml(l.action)})</span>
+          <span>${l.timestamp ? l.timestamp.slice(0, 19).replace('T', ' ') : ''}</span>
+        </div>
+        <p style="margin:0;">${escapeHtml(l.notes || '')}</p>
+      </div>
+    `).join("");
+  } catch (e) {
+    stream.innerHTML = `<p class="error-text">${escapeHtml(e.message)}</p>`;
+  }
+}
+
+/* ==================== EVENT LISTENERS ==================== */
+
+// Login Form
+$("login-form")?.addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const error = $("login-error");
+  error.textContent = "";
+
+  try {
+    const data = await api("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: $("login-email").value.trim(),
+        password: $("login-password").value,
+      }),
+    });
+    loginSuccess(data);
   } catch (e) {
     error.textContent = e.message;
   }
 });
 
-// Reminders & Audit Log Buttons
-$("send-reminders-btn")?.addEventListener("click", async () => {
-  try {
-    const res = await api(`/groups/${encodeURIComponent(state.groupCode)}/kitty/reminders?month_index=1`, {
-      method: "POST",
-    });
-    toast(res.message);
-  } catch (e) {
-    toast(e.message);
-  }
-});
+// Logout Buttons
+$("logout-btn")?.addEventListener("click", logout);
+$("mobile-logout-btn")?.addEventListener("click", logout);
 
-$("audit-btn")?.addEventListener("click", openAuditDialog);
+// Navigation
+document.querySelectorAll(".nav-link").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+document.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => showView(b.dataset.go)));
+$("refresh-btn")?.addEventListener("click", loadApp);
+
+// Expense Form & Participants
+$("open-expense-modal")?.addEventListener("click", openExpenseModal);
+$("expense-form")?.addEventListener("submit", submitExpense);
+$("split-type")?.addEventListener("change", renderSplitEditor);
 $("select-all-participants")?.addEventListener("click", () => selectAllParticipants(true));
 $("clear-participants")?.addEventListener("click", () => selectAllParticipants(false));
-$("mobile-logout-btn")?.addEventListener("click", logout);
+
+// Admin Direct Collection Modal
+$("admin-collect-btn")?.addEventListener("click", openAdminCollectModal);
+$("admin-collect-form")?.addEventListener("submit", submitAdminCollection);
+
+// Fund Spending Disbursement
+$("open-disbursement-modal")?.addEventListener("click", openDisbursementModal);
+$("fund-disbursement-form")?.addEventListener("submit", submitDisbursement);
+
+// Member UTR Form
+$("fund-submit-form")?.addEventListener("submit", submitFundReference);
+
+// Toggle All Members in Fund Schedule
+$("toggle-all-contributions-btn")?.addEventListener("click", () => {
+  state.showAllMembersSchedule = !state.showAllMembersSchedule;
+  $("toggle-all-contributions-btn").textContent = state.showAllMembersSchedule ? "Show My Schedule Only" : "Show All 4 Members";
+  renderFund();
+});
+
+// Settlement Form
+$("settle-form")?.addEventListener("submit", submitSettlement);
+
+// Trip Plan
+$("edit-trip-btn")?.addEventListener("click", openTripDialog);
+$("add-stop-btn")?.addEventListener("click", () => addStopInputRow());
+$("trip-form")?.addEventListener("submit", submitTripPlan);
+
+// Audit Dialog & Close Buttons
+$("audit-btn")?.addEventListener("click", openAuditDialog);
 document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => $(b.dataset.close).close()));
 
 // Auto-restore session on page load
