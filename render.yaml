@@ -19,3 +19,4 @@ services:
         value: prajwal@edith.travel
       - key: ADMIN_PASSWORD
         value: Prajwal784
+

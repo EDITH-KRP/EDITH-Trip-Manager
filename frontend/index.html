@@ -71,13 +71,14 @@
       </nav>
 
       <div class="sidebar-bottom">
-        <div class="profile-card">
+        <div class="profile-card" id="sidebar-profile-card" role="button" title="Account settings">
           <div class="avatar" id="user-avatar">P</div>
           <div class="profile-info">
             <strong id="user-name">Prajwal</strong>
             <small id="user-role">Administrator</small>
           </div>
         </div>
+        <button id="sidebar-password-btn" type="button" class="secondary-btn btn-sm" style="width:100%;margin-bottom:8px;font-size:12px;">Change Password</button>
         <button id="logout-btn" class="logout-btn" title="Sign out">↪ Sign out</button>
       </div>
     </aside>
@@ -95,6 +96,7 @@
         </div>
         <div class="topbar-actions">
           <button id="audit-btn" class="secondary-btn hidden" title="View Audit Trail">Audit Log</button>
+          <button id="open-password-btn" class="secondary-btn btn-sm" title="Change Password">Password</button>
           <button id="refresh-btn" class="icon-btn" title="Refresh">↻</button>
           <button id="mobile-logout-btn" class="icon-btn mobile-only-btn" title="Sign out">↪</button>
         </div>
@@ -186,6 +188,14 @@
                 <span class="action-item-text">
                   <b>Trip Route & Dates</b>
                   <small>View and update destinations and itinerary</small>
+                </span>
+                <span class="action-item-arrow">→</span>
+              </button>
+              <button class="action-item" id="quick-action-password" type="button">
+                <span class="action-item-icon">◇</span>
+                <span class="action-item-text">
+                  <b>Change Password</b>
+                  <small>Update your login credentials securely</small>
                 </span>
                 <span class="action-item-arrow">→</span>
               </button>
@@ -655,6 +665,41 @@
         <p class="muted">Loading audit entries...</p>
       </div>
     </div>
+  </dialog>
+
+  <!-- Change Password Modal -->
+  <dialog id="password-dialog" class="modal">
+    <div class="modal-drag-handle"></div>
+    <form id="password-form" class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow-accent">SECURITY</span>
+          <h2>Change Password</h2>
+          <small class="muted" id="password-user-label">Signed in</small>
+        </div>
+        <button type="button" class="close-btn" data-close="password-dialog" aria-label="Close">×</button>
+      </div>
+
+      <label>Current Password
+        <input id="pwd-current" type="password" required autocomplete="current-password" placeholder="Enter current password">
+      </label>
+
+      <label>New Password
+        <input id="pwd-new" type="password" required minlength="6" autocomplete="new-password" placeholder="Min. 6 characters">
+      </label>
+
+      <label>Confirm New Password
+        <input id="pwd-confirm" type="password" required minlength="6" autocomplete="new-password" placeholder="Re-enter new password">
+      </label>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;margin-top:6px;">
+        <input type="checkbox" id="pwd-toggle-visibility" style="width:auto;margin:0;">
+        <span class="muted">Show passwords</span>
+      </label>
+
+      <p id="password-form-error" class="error-text" role="alert"></p>
+      <button class="primary-btn full" type="submit">Update Password</button>
+    </form>
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>

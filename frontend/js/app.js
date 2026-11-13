@@ -839,6 +839,67 @@ async function openAuditDialog() {
   }
 }
 
+/* ==================== SECURITY & PASSWORD CHANGE ==================== */
+
+function openPasswordModal() {
+  $("pwd-current").value = "";
+  $("pwd-new").value = "";
+  $("pwd-confirm").value = "";
+  $("pwd-current").type = "password";
+  $("pwd-new").type = "password";
+  $("pwd-confirm").type = "password";
+  const toggle = $("pwd-toggle-visibility");
+  if (toggle) toggle.checked = false;
+  $("password-form-error").textContent = "";
+  const label = $("password-user-label");
+  if (label) {
+    label.textContent = state.user?.name ? `Signed in as ${state.user.name} (${state.user.email || ""})` : "Signed in";
+  }
+  $("password-dialog").showModal();
+}
+
+async function submitChangePassword(ev) {
+  ev.preventDefault();
+  const error = $("password-form-error");
+  error.textContent = "";
+
+  const current = $("pwd-current").value;
+  const newPwd = $("pwd-new").value;
+  const confirm = $("pwd-confirm").value;
+
+  if (!current) {
+    error.textContent = "Please enter your current password.";
+    return;
+  }
+  if (!newPwd || newPwd.length < 6) {
+    error.textContent = "New password must be at least 6 characters long.";
+    return;
+  }
+  if (newPwd !== confirm) {
+    error.textContent = "New password and confirmation do not match.";
+    return;
+  }
+  if (current === newPwd) {
+    error.textContent = "New password must be different from current password.";
+    return;
+  }
+
+  try {
+    const res = await api("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({
+        current_password: current,
+        new_password: newPwd,
+      }),
+    });
+
+    $("password-dialog").close();
+    toast(res.message || "Password updated successfully!");
+  } catch (e) {
+    error.textContent = e.message;
+  }
+}
+
 /* ==================== EVENT LISTENERS ==================== */
 
 // Login Form
@@ -902,6 +963,19 @@ $("settle-form")?.addEventListener("submit", submitSettlement);
 $("edit-trip-btn")?.addEventListener("click", openTripDialog);
 $("add-stop-btn")?.addEventListener("click", () => addStopInputRow());
 $("trip-form")?.addEventListener("submit", submitTripPlan);
+
+// Password Change
+$("open-password-btn")?.addEventListener("click", openPasswordModal);
+$("sidebar-password-btn")?.addEventListener("click", openPasswordModal);
+$("quick-action-password")?.addEventListener("click", openPasswordModal);
+$("sidebar-profile-card")?.addEventListener("click", openPasswordModal);
+$("password-form")?.addEventListener("submit", submitChangePassword);
+$("pwd-toggle-visibility")?.addEventListener("change", (e) => {
+  const t = e.target.checked ? "text" : "password";
+  $("pwd-current").type = t;
+  $("pwd-new").type = t;
+  $("pwd-confirm").type = t;
+});
 
 // Audit Dialog & Close Buttons
 $("audit-btn")?.addEventListener("click", openAuditDialog);
