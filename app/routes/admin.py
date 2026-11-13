@@ -77,6 +77,8 @@ async def admin_list_audit_logs(
     limit: int = 50,
     admin=Depends(require_admin),
 ):
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     query = {}
     if resource_type:
@@ -89,7 +91,8 @@ async def admin_list_audit_logs(
     async for item in cursor:
         item["id"] = str(item.pop("_id"))
         if "timestamp" in item and item["timestamp"]:
-            item["timestamp"] = item["timestamp"].isoformat()
+            ts = item["timestamp"]
+            item["timestamp"] = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
         logs.append(item)
 
     return {"audit_logs": logs, "count": len(logs)}

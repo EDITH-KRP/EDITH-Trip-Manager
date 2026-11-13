@@ -346,6 +346,8 @@ async def verify_contribution_payment(
     contribution_id: str,
     admin=Depends(require_admin),
 ):
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     group = await _get_member_group(db, group_code, admin)
     if not ObjectId.is_valid(contribution_id):
@@ -524,6 +526,8 @@ async def reject_contribution_payment(
     payload: ContributionReject,
     admin=Depends(require_admin),
 ):
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     group = await _get_member_group(db, group_code, admin)
     if not ObjectId.is_valid(contribution_id):
@@ -670,6 +674,8 @@ async def reconcile_kitty_balance(
     Physical balance audit: compares confirmed physical funds held by Custodian
     against system recorded balance and optionally applies compensating adjustment.
     """
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     group = await _get_member_group(db, group_code, admin)
     group_id_str = str(group["_id"])

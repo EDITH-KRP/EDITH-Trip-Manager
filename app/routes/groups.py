@@ -274,6 +274,7 @@ async def list_group_members(group_code: str, user=Depends(get_current_user)):
 
 
 @router.patch("/{group_code}/trip-plan")
+@router.put("/{group_code}/trip-plan")
 async def update_trip_plan(
     group_code: str,
     payload: TripPlanUpdate,

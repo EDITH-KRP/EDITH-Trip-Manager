@@ -523,6 +523,8 @@ class DatabaseManager:
                 status VARCHAR(32) NOT NULL DEFAULT 'active',
                 is_reversal {bool_type} NOT NULL DEFAULT FALSE,
                 reversed_expense_id VARCHAR(64),
+                reversed_by VARCHAR(64),
+                reversed_at {ts_type},
                 reversal_reason {text_type},
                 created_at {ts_type} NOT NULL,
                 updated_at {ts_type},
@@ -611,6 +613,9 @@ class DatabaseManager:
         for col_def in [
             f"participant_user_ids {json_type} DEFAULT '[]'",
             f"updated_at {ts_type}",
+            "reversed_by VARCHAR(64)",
+            f"reversed_at {ts_type}",
+            f"reversal_reason {text_type}",
         ]:
             try:
                 with self.engine.begin() as conn:

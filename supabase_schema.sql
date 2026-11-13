@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS expenses (
     status VARCHAR(32) NOT NULL DEFAULT 'active', -- 'active', 'reversed'
     is_reversal BOOLEAN NOT NULL DEFAULT FALSE,
     reversed_expense_id VARCHAR(64),
+    reversed_by VARCHAR(64),
+    reversed_at TIMESTAMPTZ,
     reversal_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
     updated_at TIMESTAMPTZ,

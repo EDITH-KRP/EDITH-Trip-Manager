@@ -464,15 +464,15 @@ function renderExpenses(balData) {
       const payer = state.members.find(m => m.id === e.paid_by_user_id);
       const payerName = payer ? payer.name : "Member";
       const categoryIcons = {
-        "Food & Dining": "🍔",
-        "Accommodation": "🏨",
-        "Fuel": "⛽",
-        "Transport / Cab": "🚕",
-        "Activities": "🎟️",
-        "Shopping": "🛍️",
-        "Other": "💳"
+        "Food & Dining": "◈",
+        "Accommodation": "⌂",
+        "Fuel": "▲",
+        "Transport / Cab": "◬",
+        "Activities": "◎",
+        "Shopping": "◇",
+        "Other": "○"
       };
-      const icon = categoryIcons[e.category] || "💳";
+      const icon = categoryIcons[e.category] || "○";
       return `
         <div class="expense-row-item">
           <div class="expense-icon-badge">${icon}</div>
@@ -635,20 +635,20 @@ async function submitExpense(ev) {
         error.textContent = `Custom shares sum to ₹${sum}, but expense amount is ₹${payload.amount}.`;
         return;
       }
-      payload.custom_splits = splits;
+      payload.splits = splits;
     } else if (splitType === "percentage") {
       const splits = [];
       let sum = 0;
       document.querySelectorAll("[data-split-user]").forEach(inp => {
         const pct = Number(inp.value || 0);
         sum += pct;
-        splits.push({ user_id: inp.dataset.splitUser, percentage: pct });
+        splits.push({ user_id: inp.dataset.splitUser, share_percentage: pct });
       });
       if (Math.abs(sum - 100) > 0.01) {
         error.textContent = `Percentages sum to ${sum}%, must equal 100%.`;
         return;
       }
-      payload.custom_splits = splits;
+      payload.splits = splits;
     }
 
     await api(`/groups/${encodeURIComponent(state.groupCode)}/expenses`, {
@@ -785,8 +785,8 @@ async function submitTripPlan(ev) {
   });
 
   try {
-    await api(`/groups/${encodeURIComponent(state.groupCode)}/trip`, {
-      method: "PUT",
+    await api(`/groups/${encodeURIComponent(state.groupCode)}/trip-plan`, {
+      method: "PATCH",
       body: JSON.stringify({
         trip_title: $("trip-title-input").value.trim(),
         trip_start_date: $("trip-start").value || null,
