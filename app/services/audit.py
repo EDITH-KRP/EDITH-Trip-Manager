@@ -1,5 +1,15 @@
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from typing import Any, Optional
+
+
+def _clean_state(data: Any) -> Any:
+    if isinstance(data, dict):
+        return {k: _clean_state(v) for k, v in data.items()}
+    if isinstance(data, (list, tuple, set)):
+        return [_clean_state(x) for x in data]
+    if isinstance(data, (datetime, date)):
+        return data.isoformat()
+    return data
 
 
 async def record_audit_log(
@@ -28,8 +38,8 @@ async def record_audit_log(
         "action": action,
         "resource_type": resource_type,
         "resource_id": str(resource_id),
-        "before_state": before_state,
-        "after_state": after_state,
+        "before_state": _clean_state(before_state),
+        "after_state": _clean_state(after_state),
         "ip_address": ip_address,
         "notes": notes,
         "timestamp": datetime.now(timezone.utc),

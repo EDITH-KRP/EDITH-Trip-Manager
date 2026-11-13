@@ -58,7 +58,7 @@ def _deserialize_from_db(val: Any, is_json_col: bool = False) -> Any:
 
 JSON_COLUMNS = {
     "groups": {"trip_stops"},
-    "expenses": {"splits"},
+    "expenses": {"splits", "participant_user_ids"},
     "audit_logs": {"before_state", "after_state"},
     "notifications": {"gateway_response"},
 }
@@ -240,6 +240,14 @@ class TableCollection:
             if isinstance(v, (datetime, date)):
                 doc[k] = v.isoformat()
 
+        if self.table_name == "kitty_transactions":
+            if "type" not in doc or not doc["type"]:
+                doc["type"] = doc.get("transaction_type") or "contribution_inflow"
+            if "transaction_type" not in doc or not doc["transaction_type"]:
+                doc["transaction_type"] = doc.get("type") or "contribution_inflow"
+            if "balance_after" not in doc:
+                doc["balance_after"] = 0
+
         cols = list(doc.keys())
         placeholders = [f":{c}" for c in cols]
         sql = f"INSERT INTO {self.table_name} ({', '.join(cols)}) VALUES ({', '.join(placeholders)})"
@@ -283,6 +291,19 @@ class TableCollection:
 
     async def update_one(self, query: Dict, update: Dict) -> UpdateResult:
         return self._update_one_sync(query, update)
+
+    async def update_many(self, query: Dict, update: Dict) -> UpdateResult:
+        return self._update_one_sync(query, update)
+
+    def _delete_many_sync(self, query: Optional[Dict] = None):
+        where_sql, params = self._build_where(query)
+        sql = f"DELETE FROM {self.table_name} WHERE {where_sql}"
+        with self.db.engine.begin() as conn:
+            res = conn.execute(text(sql), params)
+            return res.rowcount
+
+    async def delete_many(self, query: Optional[Dict] = None):
+        return self._delete_many_sync(query)
 
     def _count_sync(self, query: Optional[Dict] = None) -> int:
         where_sql, params = self._build_where(query)
@@ -425,7 +446,9 @@ class DatabaseManager:
                 trip_stops {json_type} DEFAULT '[]',
                 trip_title VARCHAR(255),
                 is_active {bool_type} NOT NULL DEFAULT TRUE,
-                created_at {ts_type} NOT NULL
+                created_at {ts_type} NOT NULL,
+                updated_at {ts_type},
+                updated_by VARCHAR(64)
             )
             """,
             f"""
@@ -469,13 +492,18 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS kitty_transactions (
                 id VARCHAR(64) PRIMARY KEY,
                 group_id VARCHAR(64) NOT NULL,
-                type VARCHAR(32) NOT NULL,
+                type VARCHAR(32) NOT NULL DEFAULT 'inflow',
+                transaction_type VARCHAR(64),
                 amount INTEGER NOT NULL,
+                category VARCHAR(64),
                 description {text_type} NOT NULL,
                 recipient_name VARCHAR(120),
+                recipient VARCHAR(120),
                 created_by VARCHAR(64),
+                authorized_by VARCHAR(64),
+                disbursement_date {ts_type},
                 created_at {ts_type} NOT NULL,
-                balance_after INTEGER NOT NULL,
+                balance_after INTEGER NOT NULL DEFAULT 0,
                 reference_id VARCHAR(64)
             )
             """,
@@ -490,12 +518,14 @@ class DatabaseManager:
                 category VARCHAR(64) NOT NULL DEFAULT 'Other',
                 expense_date {ts_type} NOT NULL,
                 notes {text_type} DEFAULT '',
+                participant_user_ids {json_type} NOT NULL DEFAULT '[]',
                 splits {json_type} NOT NULL DEFAULT '[]',
                 status VARCHAR(32) NOT NULL DEFAULT 'active',
                 is_reversal {bool_type} NOT NULL DEFAULT FALSE,
                 reversed_expense_id VARCHAR(64),
                 reversal_reason {text_type},
                 created_at {ts_type} NOT NULL,
+                updated_at {ts_type},
                 created_by VARCHAR(64)
             )
             """,
@@ -506,11 +536,16 @@ class DatabaseManager:
                 from_user_id VARCHAR(64) NOT NULL,
                 to_user_id VARCHAR(64) NOT NULL,
                 amount INTEGER NOT NULL,
-                status VARCHAR(32) NOT NULL DEFAULT 'pending',
+                status VARCHAR(32) NOT NULL DEFAULT 'proposed',
+                settlement_date {ts_type},
+                note {text_type},
                 reference_note {text_type},
-                created_at {ts_type} NOT NULL,
+                recorded_by VARCHAR(64),
+                confirmed_by VARCHAR(64),
+                confirmed_at {ts_type},
                 settled_at {ts_type},
-                verified_by VARCHAR(64)
+                verified_by VARCHAR(64),
+                created_at {ts_type} NOT NULL
             )
             """,
             f"""
@@ -532,8 +567,10 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id VARCHAR(64) PRIMARY KEY,
                 timestamp {ts_type} NOT NULL,
-                actor_user_id VARCHAR(64),
+                actor_id VARCHAR(64),
                 actor_name VARCHAR(120),
+                actor_role VARCHAR(64),
+                actor_user_id VARCHAR(64),
                 actor_email VARCHAR(255),
                 action VARCHAR(64) NOT NULL,
                 resource_type VARCHAR(64) NOT NULL,
@@ -549,6 +586,60 @@ class DatabaseManager:
         with self.engine.begin() as conn:
             for statement in ddl:
                 conn.execute(text(statement))
+
+        # Safe migration for existing SQLite / Postgres tables
+        for col_def in ["actor_id VARCHAR(64)", "actor_role VARCHAR(64)"]:
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE audit_logs ADD COLUMN {col_def}"))
+            except Exception:
+                pass
+
+        for col_def in [
+            "transaction_type VARCHAR(64)",
+            "category VARCHAR(64)",
+            "authorized_by VARCHAR(64)",
+            "recipient VARCHAR(120)",
+            f"disbursement_date {ts_type}",
+        ]:
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE kitty_transactions ADD COLUMN {col_def}"))
+            except Exception:
+                pass
+
+        for col_def in [
+            f"participant_user_ids {json_type} DEFAULT '[]'",
+            f"updated_at {ts_type}",
+        ]:
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE expenses ADD COLUMN {col_def}"))
+            except Exception:
+                pass
+
+        for col_def in [
+            f"settlement_date {ts_type}",
+            f"note {text_type}",
+            "recorded_by VARCHAR(64)",
+            "confirmed_by VARCHAR(64)",
+            f"confirmed_at {ts_type}",
+        ]:
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE settlements ADD COLUMN {col_def}"))
+            except Exception:
+                pass
+
+        for col_def in [
+            f"updated_at {ts_type}",
+            "updated_by VARCHAR(64)",
+        ]:
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE groups ADD COLUMN {col_def}"))
+            except Exception:
+                pass
 
 
 _db_manager = DatabaseManager()

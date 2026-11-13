@@ -279,6 +279,8 @@ async def update_trip_plan(
     payload: TripPlanUpdate,
     admin=Depends(require_admin),
 ):
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     if payload.trip_start_date and payload.trip_end_date and payload.trip_end_date < payload.trip_start_date:
         raise HTTPException(status_code=422, detail="Trip end date cannot be before trip start date")

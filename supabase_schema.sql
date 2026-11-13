@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS groups (
     trip_stops JSONB DEFAULT '[]'::jsonb,
     trip_title VARCHAR(255),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    updated_at TIMESTAMPTZ,
+    updated_by VARCHAR(64)
 );
 
 -- Memberships
@@ -93,13 +95,18 @@ CREATE TABLE IF NOT EXISTS contributions (
 CREATE TABLE IF NOT EXISTS kitty_transactions (
     id VARCHAR(64) PRIMARY KEY DEFAULT gen_random_uuid()::text,
     group_id VARCHAR(64) NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-    type VARCHAR(32) NOT NULL, -- 'contribution_inflow', 'disbursement', 'reconciliation_adjustment'
+    type VARCHAR(32) NOT NULL DEFAULT 'inflow', -- 'contribution_inflow', 'disbursement', 'reconciliation_adjustment'
+    transaction_type VARCHAR(64),
     amount INTEGER NOT NULL,
+    category VARCHAR(64),
     description TEXT NOT NULL,
     recipient_name VARCHAR(120),
+    recipient VARCHAR(120),
     created_by VARCHAR(64),
+    authorized_by VARCHAR(64),
+    disbursement_date TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
-    balance_after INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL DEFAULT 0,
     reference_id VARCHAR(64)
 );
 
@@ -114,12 +121,14 @@ CREATE TABLE IF NOT EXISTS expenses (
     category VARCHAR(64) NOT NULL DEFAULT 'Other',
     expense_date TIMESTAMPTZ NOT NULL,
     notes TEXT DEFAULT '',
+    participant_user_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     splits JSONB NOT NULL DEFAULT '[]'::jsonb,
     status VARCHAR(32) NOT NULL DEFAULT 'active', -- 'active', 'reversed'
     is_reversal BOOLEAN NOT NULL DEFAULT FALSE,
     reversed_expense_id VARCHAR(64),
     reversal_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    updated_at TIMESTAMPTZ,
     created_by VARCHAR(64)
 );
 
@@ -130,11 +139,16 @@ CREATE TABLE IF NOT EXISTS settlements (
     from_user_id VARCHAR(64) NOT NULL REFERENCES users(id),
     to_user_id VARCHAR(64) NOT NULL REFERENCES users(id),
     amount INTEGER NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'pending', -- 'pending', 'confirmed'
+    status VARCHAR(32) NOT NULL DEFAULT 'proposed', -- 'proposed', 'confirmed'
+    settlement_date TIMESTAMPTZ,
+    note TEXT,
     reference_note TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    recorded_by VARCHAR(64),
+    confirmed_by VARCHAR(64),
+    confirmed_at TIMESTAMPTZ,
     settled_at TIMESTAMPTZ,
-    verified_by VARCHAR(64)
+    verified_by VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );
 
 -- Notifications
@@ -156,8 +170,10 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE TABLE IF NOT EXISTS audit_logs (
     id VARCHAR(64) PRIMARY KEY DEFAULT gen_random_uuid()::text,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
-    actor_user_id VARCHAR(64),
+    actor_id VARCHAR(64),
     actor_name VARCHAR(120),
+    actor_role VARCHAR(64),
+    actor_user_id VARCHAR(64),
     actor_email VARCHAR(255),
     action VARCHAR(64) NOT NULL,
     resource_type VARCHAR(64) NOT NULL,

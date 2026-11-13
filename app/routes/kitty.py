@@ -45,6 +45,28 @@ def calculate_due_date(start_date: Any, month_index: int) -> datetime:
     return datetime(year, month, day, 23, 59, 59, tzinfo=timezone.utc)
 
 
+def _format_date(val: Any) -> Optional[str]:
+    if not val:
+        return None
+    if isinstance(val, str):
+        return val[:10]
+    if hasattr(val, "date"):
+        return val.date().isoformat()
+    if hasattr(val, "isoformat"):
+        return val.isoformat()[:10]
+    return str(val)[:10]
+
+
+def _format_iso(val: Any) -> Optional[str]:
+    if not val:
+        return None
+    if isinstance(val, str):
+        return val
+    if hasattr(val, "isoformat"):
+        return val.isoformat()
+    return str(val)
+
+
 async def ensure_group_contributions(db, group: dict, specific_user_id: Optional[str] = None):
     """
     Ensures that 12-month contribution obligation records exist for all group members.
@@ -195,14 +217,14 @@ async def get_my_contributions(group_code: str, user=Depends(get_current_user)):
             "id": str(c["_id"]),
             "month_index": c["month_index"],
             "cycle_month": c.get("cycle_month"),
-            "due_date": c["due_date"].date().isoformat() if c.get("due_date") else None,
+            "due_date": _format_date(c.get("due_date")),
             "amount_due": c["amount_due"],
             "amount_paid": c.get("amount_paid", 0),
             "utr_reference": c.get("utr_reference"),
             "proof_url": c.get("proof_url"),
             "status": c["status"],
-            "submitted_at": c["submitted_at"].isoformat() if c.get("submitted_at") else None,
-            "verified_at": c["verified_at"].isoformat() if c.get("verified_at") else None,
+            "submitted_at": _format_iso(c.get("submitted_at")),
+            "verified_at": _format_iso(c.get("verified_at")),
             "rejection_reason": c.get("rejection_reason"),
             "notes": c.get("notes", ""),
         })
@@ -232,14 +254,14 @@ async def get_all_contributions(group_code: str, admin=Depends(require_admin)):
             "user_name": name_map.get(c["user_id"], "Member"),
             "month_index": c["month_index"],
             "cycle_month": c.get("cycle_month"),
-            "due_date": c["due_date"].date().isoformat() if c.get("due_date") else None,
+            "due_date": _format_date(c.get("due_date")),
             "amount_due": c["amount_due"],
             "amount_paid": c.get("amount_paid", 0),
             "utr_reference": c.get("utr_reference"),
             "proof_url": c.get("proof_url"),
             "status": c["status"],
-            "submitted_at": c["submitted_at"].isoformat() if c.get("submitted_at") else None,
-            "verified_at": c["verified_at"].isoformat() if c.get("verified_at") else None,
+            "submitted_at": _format_iso(c.get("submitted_at")),
+            "verified_at": _format_iso(c.get("verified_at")),
             "rejection_reason": c.get("rejection_reason"),
         })
 
@@ -357,13 +379,17 @@ async def verify_contribution_payment(
 
     tx_doc = {
         "group_id": str(group["_id"]),
+        "type": "contribution_inflow",
         "transaction_type": "contribution_credit",
         "amount": c["amount_due"],
         "category": "monthly_contribution",
         "reference_id": str(c["_id"]),
         "description": f"Month {c['month_index']} savings contribution verified for {member_name}",
+        "recipient_name": member_name,
+        "created_by": str(admin["_id"]),
         "authorized_by": str(admin["_id"]),
         "created_at": now,
+        "balance_after": 0,
     }
     await db.kitty_transactions.insert_one(tx_doc)
 
@@ -407,6 +433,8 @@ async def admin_record_collection(
     Direct payment recording by administrator (Prajwal) when money is collected
     via GPay, PhonePe, Cash, or Bank transfer.
     """
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     group = await _get_member_group(db, group_code, admin)
     now = datetime.now(timezone.utc)
@@ -560,6 +588,8 @@ async def create_kitty_disbursement(
     (e.g., flight booking, hotel deposit advance, rental vehicle).
     Does NOT create personal debt in Kitty Split.
     """
+    if admin.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access required")
     db = get_database()
     group = await _get_member_group(db, group_code, admin)
     group_id_str = str(group["_id"])
@@ -579,14 +609,18 @@ async def create_kitty_disbursement(
 
     doc = {
         "group_id": group_id_str,
+        "type": "disbursement",
         "transaction_type": "disbursement",
         "amount": payload.amount,
         "category": payload.category,
         "description": payload.description,
         "recipient": payload.recipient,
+        "recipient_name": payload.recipient,
+        "created_by": str(admin["_id"]),
         "authorized_by": str(admin["_id"]),
         "disbursement_date": disb_date,
         "created_at": now,
+        "balance_after": 0,
     }
     result = await db.kitty_transactions.insert_one(doc)
 
@@ -617,10 +651,10 @@ async def list_kitty_transactions(group_code: str, user=Depends(get_current_user
     txs = []
     async for item in cursor:
         item["id"] = str(item.pop("_id"))
-        if "created_at" in item and item["created_at"]:
-            item["created_at"] = item["created_at"].isoformat()
-        if "disbursement_date" in item and item["disbursement_date"]:
-            item["disbursement_date"] = item["disbursement_date"].date().isoformat()
+        if "created_at" in item:
+            item["created_at"] = _format_iso(item.get("created_at"))
+        if "disbursement_date" in item:
+            item["disbursement_date"] = _format_date(item.get("disbursement_date"))
         txs.append(item)
 
     return {"transactions": txs, "count": len(txs)}
